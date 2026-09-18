@@ -102,9 +102,11 @@ function handleSheetLogoDragMove(e){
   const dy = point.clientY - sheetDragState.startY;
   const newX = Math.round(sheetDragState.origX + dx);
   const newY = Math.round(sheetDragState.origY + dy);
+  console.log('[DEBUG drag]', {key: sheetDragState.key, origX: sheetDragState.origX, origY: sheetDragState.origY, dx, dy, newX, newY, draftExists: !!state.sheetSettingsDraft});
   if(state.sheetSettingsDraft){
     state.sheetSettingsDraft[sheetDragState.key+'LogoX'] = newX;
     state.sheetSettingsDraft[sheetDragState.key+'LogoY'] = newY;
+    console.log('[DEBUG drag] after write:', sheetDragState.key+'LogoX', '=', state.sheetSettingsDraft[sheetDragState.key+'LogoX'], sheetDragState.key+'LogoY', '=', state.sheetSettingsDraft[sheetDragState.key+'LogoY']);
   }
   // the same logo can appear on multiple printed pages — keep every instance in sync live, not just the one being dragged
   document.querySelectorAll(`.ps-draggable-logo[data-logo="${sheetDragState.key}"]`).forEach(img=>{
@@ -373,6 +375,7 @@ function attachSheetCommonHandlers(){
         origX: (state.sheetSettingsDraft && state.sheetSettingsDraft[key+'LogoX']) || 0,
         origY: (state.sheetSettingsDraft && state.sheetSettingsDraft[key+'LogoY']) || 0
       };
+      console.log('[DEBUG startDrag]', {key, imgDataLogo: img.dataset.logo, origX: sheetDragState.origX, origY: sheetDragState.origY});
       if(e.cancelable) e.preventDefault();
     };
     img.onmousedown = startDrag;
