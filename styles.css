@@ -136,13 +136,12 @@
   }
   .hero-watermark{
     position:absolute;
-    font-family:'Fraunces',serif;
-    font-weight:700;
-    font-size:min(60vw, 620px);
-    line-height:1;
-    color:rgba(245,212,29,0.07);
-    right:-12%;
-    bottom:-18%;
+    width:min(70vw, 720px);
+    height:min(70vw, 720px);
+    object-fit:contain;
+    opacity:0.08;
+    right:-14%;
+    bottom:-16%;
     transform:rotate(-8deg);
     user-select:none;
     pointer-events:none;
@@ -192,10 +191,27 @@
   .login-form-inner{
     width:100%;
     max-width:380px;
+    background:var(--surface);
+    padding:36px 32px;
+    border-radius:14px;
+    box-shadow:0 1px 2px rgba(46,59,133,0.06), 0 12px 32px -12px rgba(46,59,133,0.18);
+    border:1px solid var(--border);
   }
   .form-heading{
     margin:0 0 6px 0;
     font-size:22px;
+    position:relative;
+    padding-top:14px;
+  }
+  .form-heading::before{
+    content:'';
+    position:absolute;
+    top:0;
+    left:0;
+    width:36px;
+    height:3px;
+    background:var(--accent);
+    border-radius:2px;
   }
   .form-sub{
     color:var(--ink-soft);
@@ -206,7 +222,7 @@
     .login-wrap{flex-direction:column;}
     .login-hero{flex:0 0 auto; padding:36px 24px;}
     .login-title{font-size:24px;}
-    .hero-watermark{font-size:min(80vw,420px);}
+    .hero-watermark{width:min(80vw,420px); height:min(80vw,420px);}
     .login-form-panel{flex:1 1 auto; padding:28px 20px;}
   }
   /* --- shared auth pieces --- */

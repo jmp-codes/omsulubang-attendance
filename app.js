@@ -461,7 +461,7 @@ function renderLogin(){
   return `
   <div class="login-wrap">
     <div class="login-hero">
-      <div class="hero-watermark" aria-hidden="true">AS</div>
+      <img src="OMSU%20Logo.jpg" alt="" aria-hidden="true" class="hero-watermark">
       <div class="login-hero-inner">
         <img src="OMSU%20Logo.jpg" alt="OMSU logo" class="seal-lg">
         <h1 class="login-title">Attendance System</h1>
@@ -536,11 +536,15 @@ function renderOfficerForgotModal(){
   </div>`;
 }
 function renderAdminAuth(){
+  // only show the default-credentials hint while the account is genuinely still on that
+  // default password — once changed, this text would just be advertising stale, working
+  // credentials to anyone who visits this public login page
+  const stillDefaultPw = DB && DB.users && DB.users['sas-admin'] && DB.users['sas-admin'].passwordHash === hashPw('ChangeMe123');
   return `
     <div class="field"><label>Admin username</label><input autocomplete="off" id="a-user" placeholder="Enter your admin username"></div>
     ${pwField('a-pw', 'Password', '••••••••')}
     <button class="btn-primary" style="width:100%" id="admin-login-btn">Log in</button>
-    <div class="hint">Default seed account: <span class="mono">sas-admin</span> / <span class="mono">ChangeMe123</span> — change this immediately after first login.</div>
+    ${stillDefaultPw ? `<div class="hint">Default seed account: <span class="mono">sas-admin</span> / <span class="mono">ChangeMe123</span> — change this immediately after first login.</div>` : ''}
   `;
 }
 
