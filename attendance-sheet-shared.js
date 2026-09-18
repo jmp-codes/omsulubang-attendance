@@ -449,7 +449,11 @@ function attachSheetCommonHandlers(){
   const saveSheetSettingsBtn = document.getElementById('save-sheet-settings-btn');
   if(saveSheetSettingsBtn) saveSheetSettingsBtn.onclick = async ()=>{
     await withSavingState(saveSheetSettingsBtn, 'Saving…', async ()=>{
-      DB.sheetSettings = { ...state.sheetSettingsDraft };
+      // re-fetch fresh first so this only overwrites this account's own scope, not any other
+      // role/department's settings that may have been saved concurrently
+      DB.sheetSettings = await fetchKey('sheetSettings', DB.sheetSettings);
+      const scopeKey = getSheetSettingsScopeKey();
+      DB.sheetSettings[scopeKey] = { ...state.sheetSettingsDraft };
       await saveKey('sheetSettings', DB.sheetSettings);
       if(state.currentUser.role==='admin'){
         await logAdminAction('Updated attendance sheet header/footer', '');

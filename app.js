@@ -93,6 +93,7 @@ async function renameDepartment(oldName, newName){
   DB.users = await fetchKey('users', DB.users);
   DB.events = await fetchKey('events', DB.events);
   DB.attendance = await fetchKey('attendance', DB.attendance);
+  DB.sheetSettings = await fetchKey('sheetSettings', DB.sheetSettings);
   if(DB.departments.some(d=>d.toLowerCase()===newName.toLowerCase() && d!==oldName)){
     return { ok:false, error:'A department with that name already exists.' };
   }
@@ -101,12 +102,18 @@ async function renameDepartment(oldName, newName){
   Object.values(DB.users).forEach(u=>{ if(u.department===oldName) u.department = newName; });
   DB.events.forEach(e=>{ e.departments = (e.departments||[]).map(d=>d===oldName ? newName : d); });
   DB.attendance.forEach(a=>{ if(a.department===oldName) a.department = newName; });
+  // this department's own attendance sheet header/footer settings are keyed by its name too
+  if(DB.sheetSettings && DB.sheetSettings[oldName]){
+    DB.sheetSettings[newName] = DB.sheetSettings[oldName];
+    delete DB.sheetSettings[oldName];
+  }
   await Promise.all([
     saveKey('departments', DB.departments),
     saveKey('sections', DB.sections),
     saveKey('users', DB.users),
     saveKey('events', DB.events),
-    saveKey('attendance', DB.attendance)
+    saveKey('attendance', DB.attendance),
+    saveKey('sheetSettings', DB.sheetSettings)
   ]);
   return { ok:true };
 }
@@ -502,10 +509,33 @@ async function seedIfEmpty(){
   }
   if(usersChanged){ await saveKey('users', DB.users); }
   if(deptsChanged){ await saveKey('departments', DB.departments); }
-  if(!DB.sheetSettings) DB.sheetSettings = { ...DEFAULT_SHEET_SETTINGS };
+  // migrate from the old shared, flat sheetSettings shape (one object with a 'university'
+  // field directly on it) to the new per-scope shape (an object keyed by 'admin', 'ssg', or a
+  // department name) — copying the old shared settings forward as everyone's starting point,
+  // so switching to independent settings doesn't wipe out an already-configured logo/university
+  // info that was shared before
+  if(!DB.sheetSettings || typeof DB.sheetSettings !== 'object'){
+    DB.sheetSettings = {};
+  } else if(DB.sheetSettings.university !== undefined){
+    const legacy = DB.sheetSettings;
+    DB.sheetSettings = { admin: {...legacy}, ssg: {...legacy} };
+    DB.departments.forEach(dep=>{ DB.sheetSettings[dep] = {...legacy}; });
+    await saveKey('sheetSettings', DB.sheetSettings);
+  }
   state.newEventDraft.departments = [...DB.departments];
   state.newOfficerDraft.department = DB.departments[0];
-  state.sheetSettingsDraft = { ...DEFAULT_SHEET_SETTINGS, ...DB.sheetSettings };
+  state.sheetSettingsDraft = { ...DEFAULT_SHEET_SETTINGS };
+}
+// which slice of sheetSettings this account should read/write — admin and SSG each get their
+// own, and department officers get their own per-department, since fields like "College/Unit"
+// are inherently specific to one department and sharing them across departments would make
+// that field meaningless for a school with more than one
+function getSheetSettingsScopeKey(){
+  const u = state.currentUser;
+  if(!u) return 'admin';
+  if(u.role==='ssg') return 'ssg';
+  if(u.role==='officer') return u.department || 'admin';
+  return 'admin';
 }
 function sectionsFor(dept){ return DB.sections[dept] || []; }
 function sectionOptions(dept, selected){
@@ -864,6 +894,11 @@ function attachShellHandlers(){
       }
       if(sub==='sheet'){
         state.sheetZoomAuto = true; // re-enable auto-fit on every fresh visit to this page, for any role
+        // load this account's own scope of settings fresh — admin, SSG, and each department
+        // now keep independent header/footer settings rather than one shared object
+        DB.sheetSettings = await fetchKey('sheetSettings', DB.sheetSettings);
+        const scopeKey = getSheetSettingsScopeKey();
+        state.sheetSettingsDraft = { ...DEFAULT_SHEET_SETTINGS, ...(DB.sheetSettings[scopeKey] || {}) };
       }
       render();
     };
