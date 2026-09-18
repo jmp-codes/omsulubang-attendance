@@ -478,6 +478,12 @@
   @media print{
     body *{ visibility:hidden; }
     .print-sheet-container, .print-sheet-container *{ visibility:visible; }
+    /* the fixed-shell layout (height:100vh + overflow clipping on html/body/#app/.shell/.main)
+       exists purely to avoid on-screen scrollbars — none of that is valid for print, and left
+       unreset, .main's overflow:hidden clips the print-sheet-container right out of the page
+       even though visibility:visible is set on it, since overflow physically cuts content
+       regardless of visibility. Reset the whole chain back to normal flow for print. */
+    html, body, #app, .shell, .main{ height:auto !important; overflow:visible !important; zoom:100% !important; }
     /* the preview modal is normally display:none when closed, and a fixed overlay when open —
        neither is valid for printing, so force it back to plain block flow either way, letting
        the rules below take over positioning for the actual print output */
