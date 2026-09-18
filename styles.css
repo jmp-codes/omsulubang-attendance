@@ -448,7 +448,7 @@
     -webkit-print-color-adjust:exact; print-color-adjust:exact; /* forces background-color elements (like the divider bars below) to actually print, since browsers silently drop them by default unless "Background graphics" is manually checked */
   }
   .print-sheet *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .ps-topline{display:flex; justify-content:space-between; font-size:10px; margin-bottom:14px; gap:12px;}
+  .ps-topline{display:flex; justify-content:space-between; font-size:10px; margin-bottom:26px; gap:12px;}
   .ps-header{position:relative; min-height:60px; padding:0 8px;}
   .ps-logo{position:absolute; top:50%; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; z-index:2;}
   .ps-logo.left{left:0;}
