@@ -1302,7 +1302,7 @@ function attachSsgHandlers(){
       if(!holder) return;
       if(window.QRCode){
         holder.innerHTML = '';
-        new QRCode(holder, {text: state.officerToken, width:200, height:200, colorDark:'#1B2A4A', colorLight:'#ffffff'});
+        new QRCode(holder, {text: state.officerToken, width:200, height:200, colorDark:'#2E3B85', colorLight:'#ffffff'});
         lastRenderedQrToken = state.officerToken;
       } else {
         holder.innerHTML = '<p style="font-size:12px; color:var(--danger);">QR image failed to load — students can still use the code below.</p>';
@@ -1398,7 +1398,7 @@ function attachOfficerHandlers(){
       if(!holder) return;
       if(window.QRCode){
         holder.innerHTML = '';
-        new QRCode(holder, {text: state.officerToken, width:200, height:200, colorDark:'#1B2A4A', colorLight:'#ffffff'});
+        new QRCode(holder, {text: state.officerToken, width:200, height:200, colorDark:'#2E3B85', colorLight:'#ffffff'});
         lastRenderedQrToken = state.officerToken;
       } else {
         holder.innerHTML = '<p style="font-size:12px; color:var(--danger);">QR image failed to load — students can still use the code below.</p>';
