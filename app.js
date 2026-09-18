@@ -2354,6 +2354,7 @@ function attachAdminHandlers(){
       state.officerDeptFilter = el.dataset.officerDept;
       state.officerSectionFilter = 'all';
       state.officerPage = 1;
+      if(state.autoPageSizeRefineCount) state.autoPageSizeRefineCount.officers = 0;
       render();
     };
   });
@@ -2361,6 +2362,7 @@ function attachAdminHandlers(){
     el.onclick = ()=>{
       state.officerSectionFilter = el.dataset.officerSection;
       state.officerPage = 1;
+      if(state.autoPageSizeRefineCount) state.autoPageSizeRefineCount.officers = 0;
       render();
     };
   });
@@ -2377,11 +2379,11 @@ function attachAdminHandlers(){
   const fe = document.getElementById('filter-event');
   if(fe) fe.onchange = async ()=>{ state.adminFilterEvent = fe.value; state.recordsPage = 1; DB.attendance = await fetchKey('attendance', DB.attendance); render(); };
   const fd = document.getElementById('filter-dept');
-  if(fd) fd.onchange = ()=>{ state.adminFilterDept = fd.value; state.adminFilterSection = 'all'; state.recordsPage = 1; render(); };
+  if(fd) fd.onchange = ()=>{ state.adminFilterDept = fd.value; state.adminFilterSection = 'all'; state.recordsPage = 1; if(state.autoPageSizeRefineCount) state.autoPageSizeRefineCount.records = 0; render(); };
   const fs = document.getElementById('filter-scope');
   if(fs) fs.onchange = ()=>{ state.adminFilterScope = fs.value; state.recordsPage = 1; render(); };
   document.querySelectorAll('[data-section]').forEach(el=>{
-    el.onclick = ()=>{ state.adminFilterSection = el.dataset.section; state.recordsPage = 1; render(); };
+    el.onclick = ()=>{ state.adminFilterSection = el.dataset.section; state.recordsPage = 1; if(state.autoPageSizeRefineCount) state.autoPageSizeRefineCount.records = 0; render(); };
   });
   document.querySelectorAll('[data-show-attendance]').forEach(el=>{
     el.onclick = ()=>{
@@ -2463,6 +2465,10 @@ function attachAdminHandlers(){
       state.studentDeptFilter = el.dataset.dept;
       state.studentSectionFilter = 'all';
       state.studentPage = 1;
+      // switching filters can add/remove the section-tabs row, genuinely changing how much
+      // vertical space is left for the table — that's a legitimate reason for a fresh
+      // measurement, not the runaway-loop scenario this cap exists to guard against
+      if(state.autoPageSizeRefineCount) state.autoPageSizeRefineCount.students = 0;
       render();
     };
   });
@@ -2470,6 +2476,7 @@ function attachAdminHandlers(){
     el.onclick = ()=>{
       state.studentSectionFilter = el.dataset.studentSection;
       state.studentPage = 1;
+      if(state.autoPageSizeRefineCount) state.autoPageSizeRefineCount.students = 0;
       render();
     };
   });
