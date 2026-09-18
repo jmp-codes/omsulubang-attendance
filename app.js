@@ -138,6 +138,23 @@ function hashPw(pw){
   return 'h'+h.toString(36);
 }
 function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
+/* one-device-one-scan support: a persistent, random ID stored in this browser's localStorage,
+   identifying "this device" (really: this specific browser install) across check-ins. Not a
+   hardware fingerprint — browsers don't expose one for privacy reasons — so it resets if
+   someone clears site data, uses a different browser, or uses private/incognito mode. It's a
+   reasonable deterrent against casual buddy-punching, not a hard security guarantee. */
+function getDeviceId(){
+  try{
+    let id = localStorage.getItem('iteas_device_id');
+    if(!id){ id = uid('dev'); localStorage.setItem('iteas_device_id', id); }
+    return id;
+  }catch(e){
+    // localStorage can be unavailable (privacy mode in some browsers) — fall back to a
+    // per-session-only ID rather than breaking check-in entirely
+    if(!window.__iteasFallbackDeviceId) window.__iteasFallbackDeviceId = uid('dev');
+    return window.__iteasFallbackDeviceId;
+  }
+}
 function fmtDate(ts){ return new Date(ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function normSection(s){ return (s||'').trim().toLowerCase(); }
 function eventSessionType(ev){ return (ev && ev.sessionType) || 'full'; }
@@ -270,7 +287,8 @@ let state = {
   officerSubRoute:'generate',
   ssgSubRoute:'generate',
   adminSubRoute:'overview',
-  checkinStep:'scan',      // scan | done
+  checkinStep:'scan',      // scan | confirmDeviceSwitch | done
+  pendingDeviceSwitchCode:null,
   lastPhase:'in',
   lastSession:'am',
   lastScope:'section',
@@ -445,7 +463,7 @@ function renderLogin(){
     <div class="login-hero">
       <div class="hero-watermark" aria-hidden="true">AS</div>
       <div class="login-hero-inner">
-        <div class="seal-lg">AS</div>
+        <img src="OMSU%20Logo.jpg" alt="OMSU logo" class="seal-lg">
         <h1 class="login-title">Attendance System</h1>
         <p class="login-tagline">${isAdminPage ? 'System admin portal' : 'One scan in, one scan out — every event, on record.'}</p>
       </div>
@@ -618,9 +636,12 @@ function renderShell(innerHtml){
   <div class="shell">
     <div class="sidebar">
       <div class="sidebar-top">
-        <div>
-          <div class="brand">Attendance System</div>
-          <div class="role-tag">${roleLabel}</div>
+        <div class="sidebar-brand-row">
+          <img src="OMSU%20Logo.jpg" alt="OMSU logo" class="sidebar-logo">
+          <div>
+            <div class="brand">Attendance System</div>
+            <div class="role-tag">${roleLabel}</div>
+          </div>
         </div>
         <button class="logout-chip" id="logout-btn">Log out</button>
       </div>
@@ -709,6 +730,17 @@ function renderCheckin(){
     ${state.cameraOpen ? renderCameraModal() : ''}
     `;
   }
+  if(state.checkinStep==='confirmDeviceSwitch'){
+    return `
+    <div class="page-head"><h1>Check in to an event</h1></div>
+    <div class="card" style="max-width:460px;">
+      <p><strong>This looks like a different device than the one you last used to check in for this event.</strong></p>
+      <p style="color:var(--ink-soft); font-size:13.5px;">If your previous device is unavailable right now (battery died, forgot it, etc.), you can continue from here instead. If this wasn't you, cancel and let your officer know.</p>
+      <button class="btn-gold" style="width:100%; margin-bottom:8px;" id="confirm-device-switch-btn">Yes, continue from this device</button>
+      <button class="btn-ghost" style="width:100%;" id="cancel-device-switch-btn">Cancel</button>
+    </div>
+    `;
+  }
   // done
   const isIn = state.lastPhase === 'in';
   const sessLabel = (state.lastSession || 'am').toUpperCase();
@@ -766,10 +798,24 @@ function attachStudentHandlers(){
   };
   const again = document.getElementById('checkin-again-btn');
   if(again) again.onclick = ()=>{ state.checkinStep='scan'; render(); };
+  const confirmSwitch = document.getElementById('confirm-device-switch-btn');
+  if(confirmSwitch) confirmSwitch.onclick = ()=>{
+    const code = state.pendingDeviceSwitchCode;
+    state.pendingDeviceSwitchCode = null;
+    state.checkinStep = 'scan';
+    tryUseToken(code, true);
+  };
+  const cancelSwitch = document.getElementById('cancel-device-switch-btn');
+  if(cancelSwitch) cancelSwitch.onclick = ()=>{
+    state.pendingDeviceSwitchCode = null;
+    state.checkinStep = 'scan';
+    state.err = '';
+    render();
+  };
   if(state.cameraOpen) startCamera();
   if(state.studentSubRoute==='profile') attachProfileHandlers();
 }
-async function tryUseToken(rawCode){
+async function tryUseToken(rawCode, allowDeviceSwitch){
   const fail = (msg)=>{
     state.err = msg;
     // close the camera on any validation failure — otherwise this error renders
@@ -810,6 +856,30 @@ async function tryUseToken(rawCode){
   if(!ev){ fail('This event no longer exists.'); return; }
   // pull the latest attendance log too, so duplicate/order checks reflect other devices
   DB.attendance = await fetchKey('attendance', DB.attendance);
+  // one-device-one-scan: a single device can't check in multiple different students for
+  // this event, and a single student can't be checked in from multiple different devices
+  // for this event — checked across every scope's records for this event, since a phone
+  // used at a Section desk shouldn't also be usable to check in a different student at the
+  // Department or SSG desk for the same event
+  const myDeviceId = getDeviceId();
+  const otherStudentSameDevice = DB.attendance.find(a=>a.eventId===tok.eventId && a.deviceId===myDeviceId && a.studentId!==u.id);
+  if(otherStudentSameDevice){
+    fail(`This device already checked in ${otherStudentSameDevice.studentName} for this event. Each device can only check in one student per event.`);
+    return;
+  }
+  const sameStudentOtherDevice = DB.attendance.find(a=>a.eventId===tok.eventId && a.studentId===u.id && a.deviceId && a.deviceId!==myDeviceId);
+  if(sameStudentOtherDevice && !allowDeviceSwitch){
+    // a genuine device swap (dead battery, forgotten phone, etc.) looks identical to misuse
+    // from here — since the student already had to log into their own account to reach this
+    // point, that authentication is the real safeguard, so this pauses for a self-service
+    // confirmation instead of a hard block or requiring an admin to manually intervene
+    state.pendingDeviceSwitchCode = rawCode;
+    state.checkinStep = 'confirmDeviceSwitch';
+    stopCamera();
+    state.cameraOpen = false;
+    render();
+    return;
+  }
   // one independent record per (event, student, scope) — a Section, Department, and SSG
   // check-in for the same event/student are tracked separately, not merged into one record
   let record = DB.attendance.find(a=>a.eventId===ev.id && a.studentId===u.id && a.scope===tok.scope);
@@ -820,16 +890,18 @@ async function tryUseToken(rawCode){
   if(tok.phase==='out'){
     if(!record || !record[inField]){ fail(`You need to time in for ${sessLabel} (${scopeLabel}) first before you can time out.`); return; }
     if(record[outField]){ fail(`You already timed out for ${sessLabel} (${scopeLabel}) on this event.`); return; }
-    record[outField] = Date.now();
+    record[outField] = serverNow();
     record.tokenUsed = code;
+    record.deviceId = myDeviceId;
   } else {
     if(record && record[inField]){ fail(`You already timed in for ${sessLabel} (${scopeLabel}) on this event.`); return; }
     if(!record){
-      record = {id: uid('att'), eventId:ev.id, eventName:ev.name, department:u.department, studentId:u.id, studentName:u.name, section:u.section, scope:tok.scope, amTimeIn:null, amTimeOut:null, pmTimeIn:null, pmTimeOut:null, tokenUsed:null};
+      record = {id: uid('att'), eventId:ev.id, eventName:ev.name, department:u.department, studentId:u.id, studentName:u.name, section:u.section, scope:tok.scope, amTimeIn:null, amTimeOut:null, pmTimeIn:null, pmTimeOut:null, tokenUsed:null, deviceId:null};
       DB.attendance.push(record);
     }
-    record[inField] = Date.now();
+    record[inField] = serverNow();
     record.tokenUsed = code;
+    record.deviceId = myDeviceId;
   }
   await saveKey('attendance', DB.attendance);
   state.checkinStep = 'done';

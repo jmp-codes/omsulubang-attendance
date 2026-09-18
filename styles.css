@@ -161,6 +161,7 @@
     font-family:'Fraunces',serif;font-weight:700;font-size:28px;
     margin:0 auto 24px auto;
     border:3px solid var(--accent);
+    object-fit:cover;
   }
   .login-title{
     color:#fff;
@@ -231,6 +232,8 @@
     height:100vh; overflow-y:auto;
   }
   .sidebar-top{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:20px;}
+  .sidebar-brand-row{display:flex; align-items:center; gap:10px;}
+  .sidebar-logo{width:38px; height:38px; border-radius:50%; object-fit:cover; border:2px solid var(--accent); flex-shrink:0;}
   .sidebar .brand{font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin-bottom:4px;}
   .sidebar .role-tag{font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em;}
   .logout-chip{
