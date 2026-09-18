@@ -465,6 +465,7 @@ function renderLogin(){
       <div class="login-hero-inner">
         <img src="OMSU%20Logo.jpg" alt="OMSU logo" class="seal-lg">
         <h1 class="login-title">Attendance System</h1>
+        <p class="login-campus">OMSU – Lubang Campus</p>
         <p class="login-tagline">${isAdminPage ? 'System admin portal' : 'One scan in, one scan out — every event, on record.'}</p>
       </div>
     </div>
@@ -636,19 +637,18 @@ function renderShell(innerHtml){
   <div class="shell">
     <div class="sidebar">
       <div class="sidebar-top">
-        <div class="sidebar-brand-row">
-          <img src="OMSU%20Logo.jpg" alt="OMSU logo" class="sidebar-logo">
-          <div>
-            <div class="brand">Attendance System</div>
-            <div class="role-tag">${roleLabel}</div>
-          </div>
-        </div>
-        <button class="logout-chip" id="logout-btn">Log out</button>
+        <img src="OMSU%20Logo.jpg" alt="OMSU logo" class="sidebar-logo">
+        <div class="brand">Attendance System</div>
+        <div class="brand-sub">OMSU – Lubang Campus</div>
+        <div class="role-tag">${roleLabel}</div>
       </div>
       <nav class="nav-strip">
         ${items.map(([key,label])=>`<button class="nav-item ${sub===key?'active':''}" data-sub="${key}">${label}</button>`).join('')}
       </nav>
-      <div class="who-name">Signed in as<br><strong style="color:#fff;">${u.name}</strong></div>
+      <div class="who-name-row">
+        <div class="who-name">Signed in as<br><strong style="color:#fff;">${u.name}</strong></div>
+        <button class="logout-chip" id="logout-btn">Log out</button>
+      </div>
     </div>
     <div class="main">${innerHtml}</div>
   </div>`;
