@@ -1859,18 +1859,18 @@ function renderAdminDepartments(){
     <button class="btn-primary" style="width:100%;" id="add-dept-btn">Add department</button>
   </div>
   <div class="section-title" style="margin:10px 0 6px 0;">All departments</div>
-  ${deps.length===0 ? `<div class="empty">No departments yet.</div>` : `<div style="display:flex; flex-direction:column; gap:8px;">${deps.map(dept=>{
+  ${deps.length===0 ? `<div class="empty">No departments yet.</div>` : `<div class="dept-cards-grid">${deps.map(dept=>{
     const sections = sectionsFor(dept);
     return `
-    <div class="card" style="max-width:560px; padding:12px 14px;">
+    <div class="card" style="padding:12px 14px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <div style="font-weight:700; font-size:14px;">${dept} ${deptInUse.has(dept)?'<span class="pill gold" style="margin-left:6px;">in use</span>':''}</div>
+        <div style="font-weight:700; font-size:14px;">${dept} <span class="hint" style="display:inline; margin:0; text-transform:none; letter-spacing:0; font-weight:400;">(${sections.length} section${sections.length===1?'':'s'})</span> ${deptInUse.has(dept)?'<span class="pill gold" style="margin-left:6px;">in use</span>':''}</div>
         <button class="btn-danger" data-del-dept="${dept}" style="padding:5px 10px; font-size:12px;">Remove department</button>
       </div>
       ${sections.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
         ${sections.map(s=>`
           <span class="section-chip">${s} ${sectionInUse.has(normSection(s))?'<span class="pill gold" style="margin-left:4px;">in use</span>':''}
-            <button class="chip-x" data-del-section-dept="${dept}" data-del-section-name="${s}" aria-label="Remove section">&times;</button>
+            <button class="chip-x" data-del-section-dept="${dept}" data-del-section-name="${s}" data-del-section-inuse="${sectionInUse.has(normSection(s))}" aria-label="Remove section">&times;</button>
           </span>`).join('')}
       </div>` : `<span class="hint" style="margin:0 0 8px 0; display:block;">No sections yet for this department.</span>`}
       <div class="row" style="gap:8px; margin-bottom:0;">
@@ -2560,6 +2560,11 @@ function attachAdminHandlers(){
     el.onclick = async ()=>{
       const dept = el.dataset.delSectionDept;
       const name = el.dataset.delSectionName;
+      const inUse = el.dataset.delSectionInuse === 'true';
+      const msg = inUse
+        ? `Remove section "${name}" from ${dept}? This section currently has students and/or officers assigned to it — removing it only takes it off the picker lists, it does not change their existing accounts or attendance history.`
+        : `Remove section "${name}" from ${dept}?`;
+      if(!(await confirmDialog(msg))) return;
       DB.sections[dept] = (DB.sections[dept]||[]).filter(s=>s!==name);
       await saveKey('sections', DB.sections);
       await logAdminAction('Deleted section', `${name} (${dept})`);

@@ -311,6 +311,7 @@
   .bar-value{width:70px; text-align:right; font-size:12px; font-weight:700; color:var(--ink-soft); flex-shrink:0;}
   .analytics-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   @media (max-width:800px){ .analytics-grid{grid-template-columns:1fr;} }
+  .dept-cards-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(440px, 1fr)); gap:12px; align-items:start;}
   .sheet-preview-viewport{
     background:var(--bg); padding:28px; overflow:auto;
     max-height:70vh;
