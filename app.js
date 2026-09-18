@@ -1155,6 +1155,20 @@ function startBackgroundSync(){
 function stopBackgroundSync(){
   if(backgroundSyncTimer){ clearInterval(backgroundSyncTimer); backgroundSyncTimer=null; }
 }
+// how many attendance records already match this exact live desk (same event, scope, and
+// phase) — recomputed from the same fresh attendance fetch officerTick() already does every
+// tick, so this stays live without any extra network calls of its own
+function computeLiveCheckinCount(eventId, department, section, scope, session, phase){
+  const field = phase==='out' ? (session+'TimeOut') : (session+'TimeIn');
+  return DB.attendance.filter(a=>{
+    if(a.eventId!==eventId || a.scope!==scope) return false;
+    // ssg scope spans every department, so department/section never apply to it — only
+    // section and department scope are tied to one specific department
+    if(scope!=='ssg' && a.department!==department) return false;
+    if(scope==='section' && normSection(a.section)!==normSection(section)) return false;
+    return !!a[field];
+  }).length;
+}
 function stopQrRotation(){
   if(qrRotateTimer){ clearInterval(qrRotateTimer); qrRotateTimer=null; }
 }
@@ -1183,6 +1197,8 @@ async function officerTick(eventId, department, section, phase, scope, session){
   if(!state.officerRotating || !state.officerToken) return;
   // pull the latest attendance log so we can tell if someone just used this code
   DB.attendance = await fetchKey('attendance', DB.attendance);
+  const countEl = document.getElementById('qr-live-count');
+  if(countEl) countEl.textContent = computeLiveCheckinCount(eventId, department, section, scope, session, phase);
   const consumed = DB.attendance.some(a => a.tokenUsed === state.officerToken);
   const elapsed = serverNow() - state.officerTokenCreatedAt;
   if(consumed || elapsed >= ROTATE_MS){
@@ -1262,6 +1278,7 @@ function renderOfficerGenerate(myEvents){
       <div id="qr-render"></div>
       <div class="code-text">${state.officerToken}</div>
       <div class="pill gold" id="qr-countdown" style="margin-top:12px;">Refreshes in ${remaining}s</div>
+      <div class="live-count-badge"><span id="qr-live-count">${computeLiveCheckinCount(activeId, state.currentUser.department, mySection, mySection?'section':'department', session, state.officerPhase)}</span> checked in so far</div>
       <p style="font-size:12px; color:var(--ink-soft); margin-top:12px;">Display this on a screen at your station. It updates itself as students check in — keep the tab open.</p>
     </div>
   ` : ''}
@@ -1365,6 +1382,7 @@ function renderSsgGenerate(allEvents){
       <div id="qr-render"></div>
       <div class="code-text">${state.officerToken}</div>
       <div class="pill gold" id="qr-countdown" style="margin-top:12px;">Refreshes in ${remaining}s</div>
+      <div class="live-count-badge"><span id="qr-live-count">${computeLiveCheckinCount(activeId, null, null, 'ssg', session, state.officerPhase)}</span> checked in so far</div>
       <p style="font-size:12px; color:var(--ink-soft); margin-top:12px;">Display this on a screen at your station. It updates itself as students check in — keep the tab open.</p>
     </div>
   ` : ''}
