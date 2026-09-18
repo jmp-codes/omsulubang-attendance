@@ -221,6 +221,77 @@ function paginate(list, page, pageSize){
   const start = (clampedPage-1)*pageSize;
   return { items: list.slice(start, start+pageSize), totalPages, page: clampedPage };
 }
+/* ---------------- app-wide dialog system ----------------
+   Replaces native confirm()/alert()/prompt() with the app's own branded modal, so destructive
+   actions and messages look consistent with the rest of the UI instead of the browser's plain,
+   unstyled popup. Each function returns a Promise so call sites keep the same
+   "if(!(await confirmDialog(...))) return;" shape that confirm() used to have. */
+function showDialog(options){
+  return new Promise(resolve=>{
+    state.appDialog = { danger:false, confirmLabel:'OK', cancelLabel:'Cancel', promptPlaceholder:'', ...options, resolve };
+    render();
+  });
+}
+function confirmDialog(message, opts={}){ return showDialog({ message, mode:'confirm', danger:true, confirmLabel:'Confirm', ...opts }); }
+function alertDialog(message, opts={}){ return showDialog({ message, mode:'alert', ...opts }); }
+function promptDialog(message, opts={}){ return showDialog({ message, mode:'prompt', confirmLabel:'Submit', ...opts }); }
+function renderAppDialog(){
+  const d = state.appDialog;
+  if(!d) return '';
+  return `
+  <div class="modal-overlay" id="app-dialog-overlay">
+    <div class="modal-card" style="max-width:440px;">
+      <p style="margin-top:0; font-size:14.5px; line-height:1.6; white-space:pre-line;">${d.message}</p>
+      ${d.mode==='prompt' ? `<div class="field"><input autocomplete="off" id="app-dialog-input" placeholder="${d.promptPlaceholder}"></div>` : ''}
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        ${d.mode!=='alert' ? `<button class="btn-ghost" id="app-dialog-cancel" style="flex:1;">${d.cancelLabel}</button>` : ''}
+        <button class="${d.danger?'btn-danger':'btn-primary'}" id="app-dialog-confirm" style="flex:1;">${d.confirmLabel}</button>
+      </div>
+    </div>
+  </div>`;
+}
+function attachAppDialogHandlers(){
+  const overlay = document.getElementById('app-dialog-overlay');
+  if(!overlay) return;
+  const d = state.appDialog;
+  const finish = (result)=>{
+    const resolve = d.resolve;
+    state.appDialog = null;
+    render();
+    resolve(result);
+  };
+  const confirmBtn = document.getElementById('app-dialog-confirm');
+  if(confirmBtn) confirmBtn.onclick = ()=>{
+    if(d.mode==='prompt'){
+      const input = document.getElementById('app-dialog-input');
+      finish(input ? input.value : '');
+    } else {
+      finish(true);
+    }
+  };
+  const cancelBtn = document.getElementById('app-dialog-cancel');
+  if(cancelBtn) cancelBtn.onclick = ()=>{ finish(d.mode==='prompt' ? null : false); };
+  overlay.onclick = (e)=>{ if(e.target===overlay && d.mode!=='alert'){ finish(d.mode==='prompt' ? null : false); } };
+  if(d.mode==='prompt'){
+    const input = document.getElementById('app-dialog-input');
+    if(input){ input.focus(); input.onkeydown = (e)=>{ if(e.key==='Enter') confirmBtn.click(); }; }
+  }
+}
+// disables a button and swaps its label to a "Saving…" state for the duration of an async
+// action, so slow connections don't look like the click did nothing — restores automatically
+// whether the action succeeds or throws
+async function withSavingState(btn, label, fn){
+  if(!btn){ return fn(); }
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = label || 'Saving…';
+  try{
+    return await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
 function paginationControls(page, totalPages, idPrefix){
   if(totalPages<=1) return '';
   return `
@@ -626,6 +697,22 @@ function attachLoginHandlers(){
 }
 
 /* ---------------- SHELL ---------------- */
+const NAV_ICONS = {
+  overview: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="2.5" width="6" height="6" rx="1"/><rect x="11.5" y="2.5" width="6" height="6" rx="1"/><rect x="2.5" y="11.5" width="6" height="6" rx="1"/><rect x="11.5" y="11.5" width="6" height="6" rx="1"/></svg>',
+  analytics: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 16V9M10 16V4M16 16v-6"/></svg>',
+  events: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="13.5" rx="1.5"/><path d="M2.5 8h15M6 2.5v3M14 2.5v3"/></svg>',
+  departments: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="6" height="10.5" rx="1"/><rect x="11" y="2.5" width="6" height="15" rx="1"/><path d="M13.5 6h1M13.5 9h1M13.5 12h1M5 10.5h1M5 13.5h1"/></svg>',
+  students: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.5" r="3.2"/><path d="M3.5 17c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/></svg>',
+  officers: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M10 2.5l6.5 2.5v4.5c0 4-2.8 6.8-6.5 8-3.7-1.2-6.5-4-6.5-8V5z"/><path d="M7.3 10l2 2 3.4-3.8" stroke-linecap="round"/></svg>',
+  records: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="14" height="15" rx="1.5"/><path d="M6.5 7h7M6.5 10.5h7M6.5 14h4.5"/></svg>',
+  sheet: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="12" height="14" rx="1.5"/><rect x="7" y="2" width="6" height="3" rx="1"/><path d="M6.5 10h7M6.5 13h4.5"/></svg>',
+  log: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10.5" r="7"/><path d="M10 6.5v4l3 2M7 2.5h6"/></svg>',
+  profile: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.8" r="3.3"/><path d="M3.3 17c0-3.6 3-6.2 6.7-6.2s6.7 2.6 6.7 6.2"/></svg>',
+  checkin: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="12" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="12" width="5.5" height="5.5" rx="1"/><path d="M12.5 13h5M15 12.5v5"/></svg>',
+  history: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="14" height="15" rx="1.5"/><path d="M6.5 10.5l2 2 4.5-5"/></svg>',
+  generate: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="6" height="6" rx="1"/><rect x="11.5" y="2.5" width="6" height="6" rx="1"/><rect x="2.5" y="11.5" width="6" height="6" rx="1"/><path d="M13 12.5h2.5v2.5M17.5 12.5v5M11.5 17.5h2.5"/></svg>',
+  attendees: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="6.5" r="2.7"/><circle cx="14.5" cy="7.5" r="2.2"/><path d="M2.5 17c0-3 2-5.2 4.5-5.2s4.5 2.2 4.5 5.2M12.7 12.3c2 .2 3.5 2.1 3.5 4.7"/></svg>'
+};
 function renderShell(innerHtml){
   const u = state.currentUser;
   const role = u.role;
@@ -647,7 +734,7 @@ function renderShell(innerHtml){
         <div class="role-tag">${roleLabel}</div>
       </div>
       <nav class="nav-strip">
-        ${items.map(([key,label])=>`<button class="nav-item ${sub===key?'active':''}" data-sub="${key}">${label}</button>`).join('')}
+        ${items.map(([key,label])=>`<button class="nav-item ${sub===key?'active':''}" data-sub="${key}"><span class="nav-icon">${NAV_ICONS[key]||''}</span>${label}</button>`).join('')}
       </nav>
       <div class="who-name-row">
         <div class="who-name">Signed in as<br><strong style="color:#fff;">${u.name}</strong></div>
@@ -655,9 +742,11 @@ function renderShell(innerHtml){
       </div>
     </div>
     <div class="main">${innerHtml}</div>
-  </div>`;
+  </div>
+  ${renderAppDialog()}`;
 }
 function attachShellHandlers(){
+  attachAppDialogHandlers();
   document.querySelectorAll('.nav-item[data-sub]').forEach(el=>{
     el.onclick = async ()=>{
       const role = state.currentUser.role;
@@ -1315,7 +1404,7 @@ function attachSsgHandlers(){
   }
   document.querySelectorAll('[data-remove-att]').forEach(el=>{
     el.onclick = async ()=>{
-      if(!confirm('Remove this attendance record? The student will need to scan again from scratch.')) return;
+      if(!(await confirmDialog('Remove this attendance record? The student will need to scan again from scratch.')))  return;
       await removeAttendanceRecord(el.dataset.removeAtt);
       render();
     };
@@ -1328,7 +1417,7 @@ function attachSsgHandlers(){
     DB.attendance = await fetchKey('attendance', DB.attendance);
     const toRemove = DB.attendance.filter(a => a.eventId===eventId && a.scope==='ssg');
     if(toRemove.length===0){ render(); return; }
-    if(!confirm(`Reset attendance for this event? This permanently removes ${toRemove.length} SSG record${toRemove.length===1?'':'s'} across every department — section and department desk records for the same event are untouched. Students will need to scan in again from scratch.`)) return;
+    if(!(await confirmDialog(`Reset attendance for this event? This permanently removes ${toRemove.length} SSG record${toRemove.length===1?'':'s'} across every department — section and department desk records for the same event are untouched. Students will need to scan in again from scratch.`)))  return;
     DB.attendance = DB.attendance.filter(a => !(a.eventId===eventId && a.scope==='ssg'));
     await saveKey('attendance', DB.attendance);
     render();
@@ -1411,7 +1500,7 @@ function attachOfficerHandlers(){
   }
   document.querySelectorAll('[data-remove-att]').forEach(el=>{
     el.onclick = async ()=>{
-      if(!confirm('Remove this attendance record? The student will need to scan again from scratch.')) return;
+      if(!(await confirmDialog('Remove this attendance record? The student will need to scan again from scratch.')))  return;
       await removeAttendanceRecord(el.dataset.removeAtt);
       render();
     };
@@ -1428,7 +1517,7 @@ function attachOfficerHandlers(){
     DB.attendance = await fetchKey('attendance', DB.attendance);
     const toRemove = DB.attendance.filter(matches);
     if(toRemove.length===0){ render(); return; }
-    if(!confirm(`Reset attendance for this event? This permanently removes ${toRemove.length} record${toRemove.length===1?'':'s'} made through ${section ? 'your section' : 'your department'}'s desk — records from other desks are untouched. Students will need to scan in again from scratch.`)) return;
+    if(!(await confirmDialog(`Reset attendance for this event? This permanently removes ${toRemove.length} record${toRemove.length===1?'':'s'} made through ${section ? 'your section' : 'your department'}'s desk — records from other desks are untouched. Students will need to scan in again from scratch.`)))  return;
     DB.attendance = DB.attendance.filter(a => !matches(a));
     await saveKey('attendance', DB.attendance);
     render();
@@ -1511,16 +1600,22 @@ function attachProfileHandlers(){
       }
       const idEl = document.getElementById('prof-student-id');
       const newId = idEl ? idEl.value.trim() : u.id;
-      const result = await renameStudentId(u.id, newId, u);
-      if(!result.ok){ state.err = result.error; state.profileMsg=''; render(); return; }
-      state.currentUser = DB.users[newId];
+      let saveErr = null;
+      await withSavingState(save, 'Saving…', async ()=>{
+        const result = await renameStudentId(u.id, newId, u);
+        if(!result.ok) saveErr = result.error;
+        else state.currentUser = DB.users[newId];
+      });
+      if(saveErr){ state.err = saveErr; state.profileMsg=''; render(); return; }
       state.profileMsg = 'saved';
       state.err = '';
       render();
       return;
     }
-    DB.users[u.id] = u;
-    await saveKey('users', DB.users);
+    await withSavingState(save, 'Saving…', async ()=>{
+      DB.users[u.id] = u;
+      await saveKey('users', DB.users);
+    });
     state.profileMsg = 'saved';
     state.err = '';
     render();
@@ -1535,8 +1630,10 @@ function attachProfileHandlers(){
     if(!next || next.length<4){ state.err='New password must be at least 4 characters.'; state.profileMsg=''; render(); return; }
     if(next !== confirm){ state.err='New passwords do not match.'; state.profileMsg=''; render(); return; }
     u.passwordHash = hashPw(next);
-    DB.users[u.id] = u;
-    await saveKey('users', DB.users);
+    await withSavingState(savePw, 'Saving…', async ()=>{
+      DB.users[u.id] = u;
+      await saveKey('users', DB.users);
+    });
     state.err = '';
     state.profileMsg = 'pw-saved';
     render();
@@ -2192,17 +2289,21 @@ function attachAdminHandlers(){
     const d = state.newEventDraft;
     const editing = state.editingEventId;
     if(!d.name || d.departments.length===0){ state.err='Give the event a name and at least one department.'; render(); return; }
-    if(editing){
-      const idx = DB.events.findIndex(e=>e.id===editing);
-      if(idx===-1){ state.err='This event no longer exists.'; state.editingEventId=null; render(); return; }
-      DB.events[idx] = {...DB.events[idx], name:d.name, date:d.date, departments:[...d.departments], sessionType: d.sessionType || 'full', sections:[...d.sections], venue:d.venue||'', amTime:d.amTime||'', pmTime:d.pmTime||''};
-      await saveKey('events', DB.events);
-      await logAdminAction('Edited event', d.name);
-    } else {
-      DB.events.push({id: uid('evt'), name:d.name, date:d.date, departments:[...d.departments], sessionType: d.sessionType || 'full', sections:[...d.sections], venue:d.venue||'', amTime:d.amTime||'', pmTime:d.pmTime||''});
-      await saveKey('events', DB.events);
-      await logAdminAction('Created event', d.name);
-    }
+    let missingEventErr = false;
+    await withSavingState(createEv, editing ? 'Saving…' : 'Creating…', async ()=>{
+      if(editing){
+        const idx = DB.events.findIndex(e=>e.id===editing);
+        if(idx===-1){ missingEventErr = true; return; }
+        DB.events[idx] = {...DB.events[idx], name:d.name, date:d.date, departments:[...d.departments], sessionType: d.sessionType || 'full', sections:[...d.sections], venue:d.venue||'', amTime:d.amTime||'', pmTime:d.pmTime||''};
+        await saveKey('events', DB.events);
+        await logAdminAction('Edited event', d.name);
+      } else {
+        DB.events.push({id: uid('evt'), name:d.name, date:d.date, departments:[...d.departments], sessionType: d.sessionType || 'full', sections:[...d.sections], venue:d.venue||'', amTime:d.amTime||'', pmTime:d.pmTime||''});
+        await saveKey('events', DB.events);
+        await logAdminAction('Created event', d.name);
+      }
+    });
+    if(missingEventErr){ state.err='This event no longer exists.'; state.editingEventId=null; render(); return; }
     state.eventModalOpen = false;
     state.editingEventId = null;
     state.newEventDraft = {name:'', date:'', departments:[...DB.departments], sessionType:'full', sections:[], venue:'', amTime:'', pmTime:''};
@@ -2222,7 +2323,7 @@ function attachAdminHandlers(){
   document.querySelectorAll('[data-del-event]').forEach(el=>{
     el.onclick = async ()=>{
       const ev = DB.events.find(e=>e.id===el.dataset.delEvent);
-      if(!confirm(`Remove "${ev ? ev.name : 'this event'}"? This does not delete existing attendance records for it.`)) return;
+      if(!(await confirmDialog(`Remove "${ev ? ev.name : 'this event'}"? This does not delete existing attendance records for it.`)))  return;
       DB.events = DB.events.filter(e=>e.id!==el.dataset.delEvent);
       await saveKey('events', DB.events);
       await logAdminAction('Deleted event', ev ? ev.name : el.dataset.delEvent);
@@ -2281,25 +2382,30 @@ function attachAdminHandlers(){
     const department = needsDept ? (deptEl ? deptEl.value : state.newOfficerDraft.department) : null;
     const section = needsSection ? (secEl ? secEl.value : '') : null;
     if(!name || !username || (needsSection && !section) || (!editing && !pw)){ state.err='Fill in every field — if Section only shows "No sections yet," add one under Sections first.'; render(); return; }
-    if(editing){
-      const existing = DB.users[editing];
-      if(!existing){ state.err='This officer no longer exists.'; state.editingOfficerUsername=null; render(); return; }
-      existing.name = name;
-      if(existing.role==='officer'){ existing.department = department; existing.section = section; }
-      if(pw) existing.passwordHash = hashPw(pw);
-      DB.users[editing] = existing;
-      await saveKey('users', DB.users);
-      await logAdminAction('Edited officer', `${name} (${editing})`);
-    } else {
-      if(DB.users[username]){ state.err='That username is taken.'; render(); return; }
-      if(type==='ssg'){
-        DB.users[username] = {id:username, role:'ssg', name, username, passwordHash:hashPw(pw)};
+    let usernameTakenErr = false, missingOfficerErr = false;
+    await withSavingState(createOf, editing ? 'Saving…' : 'Creating…', async ()=>{
+      if(editing){
+        const existing = DB.users[editing];
+        if(!existing){ missingOfficerErr = true; return; }
+        existing.name = name;
+        if(existing.role==='officer'){ existing.department = department; existing.section = section; }
+        if(pw) existing.passwordHash = hashPw(pw);
+        DB.users[editing] = existing;
+        await saveKey('users', DB.users);
+        await logAdminAction('Edited officer', `${name} (${editing})`);
       } else {
-        DB.users[username] = {id:username, role:'officer', name, username, department, section, passwordHash:hashPw(pw)};
+        if(DB.users[username]){ usernameTakenErr = true; return; }
+        if(type==='ssg'){
+          DB.users[username] = {id:username, role:'ssg', name, username, passwordHash:hashPw(pw)};
+        } else {
+          DB.users[username] = {id:username, role:'officer', name, username, department, section, passwordHash:hashPw(pw)};
+        }
+        await saveKey('users', DB.users);
+        await logAdminAction('Created officer', `${name} (${username}), ${scopeLabel(type)}`);
       }
-      await saveKey('users', DB.users);
-      await logAdminAction('Created officer', `${name} (${username}), ${scopeLabel(type)}`);
-    }
+    });
+    if(missingOfficerErr){ state.err='This officer no longer exists.'; state.editingOfficerUsername=null; render(); return; }
+    if(usernameTakenErr){ state.err='That username is taken.'; render(); return; }
     state.officerModalOpen = false;
     state.newOfficerDraft = {name:'', username:'', password:'', department:DB.departments[0], section:'', type:'section'};
     state.editingOfficerUsername = null;
@@ -2319,7 +2425,7 @@ function attachAdminHandlers(){
   document.querySelectorAll('[data-del-officer]').forEach(el=>{
     el.onclick = async ()=>{
       const o = DB.users[el.dataset.delOfficer];
-      if(!confirm(`Remove officer account "${o ? o.name : el.dataset.delOfficer}"? This cannot be undone.`)) return;
+      if(!(await confirmDialog(`Remove officer account "${o ? o.name : el.dataset.delOfficer}"? This cannot be undone.`)))  return;
       delete DB.users[el.dataset.delOfficer];
       await saveKey('users', DB.users);
       await logAdminAction('Deleted officer', o ? `${o.name} (${el.dataset.delOfficer})` : el.dataset.delOfficer);
@@ -2331,7 +2437,7 @@ function attachAdminHandlers(){
       const username = el.dataset.resetOfficer;
       const u = DB.users[username];
       if(!u) return;
-      if(!confirm(`Reset the password for ${u.name} (${username})? Their current password will stop working immediately.`)) return;
+      if(!(await confirmDialog(`Reset the password for ${u.name} (${username})? Their current password will stop working immediately.`)))  return;
       const temp = generateTempPassword();
       u.passwordHash = hashPw(temp);
       DB.users[username] = u;
@@ -2410,16 +2516,18 @@ function attachAdminHandlers(){
     const name = nameEl.value.trim();
     if(!name){ state.err='Enter a department name.'; render(); return; }
     if(DB.departments.includes(name)){ state.err='That department already exists.'; render(); return; }
-    DB.departments.push(name);
-    await saveKey('departments', DB.departments);
-    await logAdminAction('Added department', name);
+    await withSavingState(addDept, 'Adding…', async ()=>{
+      DB.departments.push(name);
+      await saveKey('departments', DB.departments);
+      await logAdminAction('Added department', name);
+    });
     state.err='';
     render();
   };
   document.querySelectorAll('[data-del-dept]').forEach(el=>{
     el.onclick = async ()=>{
       const dept = el.dataset.delDept;
-      if(!confirm(`Remove ${dept}? Its sections list will be removed too.`)) return;
+      if(!(await confirmDialog(`Remove ${dept}? Its sections list will be removed too.`)))  return;
       DB.departments = DB.departments.filter(d=>d!==dept);
       delete DB.sections[dept];
       await saveKey('departments', DB.departments);
@@ -2515,9 +2623,12 @@ function attachAdminHandlers(){
     const usernameTaken = Object.values(DB.users).some(cand=>cand.role==='student' && cand.id!==id && cand.username && username && cand.username.toLowerCase()===username.toLowerCase());
     if(usernameTaken){ state.err='That username is already taken by another student.'; render(); return; }
     u.name = name; u.sex = sex; u.department = department; u.section = section; u.username = username;
-    const result = await renameStudentId(id, newId, u);
+    let result;
+    await withSavingState(saveStudentEdit, 'Saving…', async ()=>{
+      result = await renameStudentId(id, newId, u);
+      if(result.ok) await logAdminAction('Edited student', `${name} (${newId})`);
+    });
     if(!result.ok){ state.err = result.error; render(); return; }
-    await logAdminAction('Edited student', `${name} (${newId})`);
     state.editingStudentId = null;
     state.err = '';
     render();
@@ -2529,7 +2640,7 @@ function attachAdminHandlers(){
       const id = el.dataset.resetStudent;
       const u = DB.users[id];
       if(!u) return;
-      if(!confirm(`Reset the password for ${u.name} (${id})? Their current password will stop working immediately.`)) return;
+      if(!(await confirmDialog(`Reset the password for ${u.name} (${id})? Their current password will stop working immediately.`)))  return;
       const temp = generateTempPassword();
       u.passwordHash = hashPw(temp);
       DB.users[id] = u;
@@ -2545,16 +2656,15 @@ function attachAdminHandlers(){
   if(removeAllStudentsBtn) removeAllStudentsBtn.onclick = async ()=>{
     DB.users = await fetchKey('users', DB.users);
     const studentCount = Object.values(DB.users).filter(u=>u.role==='student').length;
-    if(studentCount===0){ alert('No student accounts remain — nothing to remove.'); render(); return; }
+    if(studentCount===0){ await alertDialog('No student accounts remain — nothing to remove.'); return; }
     const confirmText = `Remove all ${studentCount} student account${studentCount===1?'':'s'}?\n\nThis deletes their login accounts only — event data, officer/admin accounts, and all attendance history stay untouched. If a student re-registers using the exact same Student ID they had before, their attendance history reconnects automatically.\n\nType REMOVE to confirm.`;
-    const typed = prompt(confirmText);
+    const typed = await promptDialog(confirmText, {confirmLabel:'Remove', danger:true, promptPlaceholder:'Type REMOVE to confirm'});
     if(typed !== 'REMOVE') return;
     Object.keys(DB.users).forEach(id=>{ if(DB.users[id].role==='student') delete DB.users[id]; });
     await saveKey('users', DB.users);
     await logAdminAction('Removed all student accounts', `${studentCount} account(s) deleted — attendance history preserved`);
     state.recoveredStudents = null;
-    alert(`Removed ${studentCount} student account${studentCount===1?'':'s'}. Students can now register fresh accounts.`);
-    render();
+    await alertDialog(`Removed ${studentCount} student account${studentCount===1?'':'s'}. Students can now register fresh accounts.`);
   };
   const recoverStudentsBtn = document.getElementById('recover-students-btn');
   if(recoverStudentsBtn) recoverStudentsBtn.onclick = async ()=>{
@@ -2573,8 +2683,8 @@ function attachAdminHandlers(){
       }
     });
     const missing = Object.values(byStudent);
-    if(missing.length===0){ alert('No missing students found — nothing to recover.'); render(); return; }
-    if(!confirm(`Recreate ${missing.length} student account${missing.length===1?'':'s'} from attendance history? Each will get a fresh temporary password since the originals can\'t be recovered. This does not affect any account that still exists.`)) return;
+    if(missing.length===0){ await alertDialog('No missing students found — nothing to recover.'); return; }
+    if(!(await confirmDialog(`Recreate ${missing.length} student account${missing.length===1?'':'s'} from attendance history? Each will get a fresh temporary password since the originals can\'t be recovered. This does not affect any account that still exists.`)))  return;
     const recovered = missing.map(m=>{
       const tempPassword = generateTempPassword();
       DB.users[m.id] = { id:m.id, role:'student', name:m.name, username:'', sex:'', department:m.department, section:m.section, passwordHash:hashPw(tempPassword) };
@@ -2611,7 +2721,7 @@ function attachAdminHandlers(){
   };
   document.querySelectorAll('[data-remove-att]').forEach(el=>{
     el.onclick = async ()=>{
-      if(!confirm('Remove this attendance record? This clears both time-in and time-out for that student on this event.')) return;
+      if(!(await confirmDialog('Remove this attendance record? This clears both time-in and time-out for that student on this event.')))  return;
       await removeAttendanceRecord(el.dataset.removeAtt);
       await logAdminAction('Removed attendance record', el.dataset.removeAtt);
       render();
@@ -2625,7 +2735,7 @@ function attachAdminHandlers(){
     DB.attendance = await fetchKey('attendance', DB.attendance);
     const toRemove = DB.attendance.filter(a => a.eventId===eventId && (dept==='all' || a.department===dept));
     if(toRemove.length===0){ render(); return; }
-    if(!confirm(`Reset attendance for ${eventName}${dept!=='all'?` (${dept})`:''}? This permanently removes ${toRemove.length} record${toRemove.length===1?'':'s'} — students will need to scan in again from scratch.`)) return;
+    if(!(await confirmDialog(`Reset attendance for ${eventName}${dept!=='all'?` (${dept})`:''}? This permanently removes ${toRemove.length} record${toRemove.length===1?'':'s'} — students will need to scan in again from scratch.`)))  return;
     DB.attendance = DB.attendance.filter(a => !(a.eventId===eventId && (dept==='all' || a.department===dept)));
     await saveKey('attendance', DB.attendance);
     await logAdminAction('Bulk-reset attendance', `${toRemove.length} record(s) for ${eventName}${dept!=='all'?` (${dept})`:''}`);

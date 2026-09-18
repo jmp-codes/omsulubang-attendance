@@ -444,11 +444,13 @@ function attachSheetCommonHandlers(){
   if(sheetModalOverlay) sheetModalOverlay.onclick = (e)=>{ if(e.target === sheetModalOverlay) closeSheetSettings(); };
   const saveSheetSettingsBtn = document.getElementById('save-sheet-settings-btn');
   if(saveSheetSettingsBtn) saveSheetSettingsBtn.onclick = async ()=>{
-    DB.sheetSettings = { ...state.sheetSettingsDraft };
-    await saveKey('sheetSettings', DB.sheetSettings);
-    if(state.currentUser.role==='admin'){
-      await logAdminAction('Updated attendance sheet header/footer', '');
-    }
+    await withSavingState(saveSheetSettingsBtn, 'Saving…', async ()=>{
+      DB.sheetSettings = { ...state.sheetSettingsDraft };
+      await saveKey('sheetSettings', DB.sheetSettings);
+      if(state.currentUser.role==='admin'){
+        await logAdminAction('Updated attendance sheet header/footer', '');
+      }
+    });
     state.sheetSettingsModalOpen = false;
     state.err = '';
     render();
