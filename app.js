@@ -530,6 +530,15 @@ function render(){
 function autoFitMainContent(){
   const main = document.querySelector('.main');
   if(!main) return;
+  if(document.querySelector('.modal-overlay')){
+    // skip the expensive measure/recalculate work while a modal is open — that's what was
+    // causing visible flicker on every keystroke or option change inside one. But still force
+    // zoom back to 100% (only if it isn't already, so this doesn't itself re-trigger on every
+    // render) so a modal never inherits a shrink the underlying page needed before it opened —
+    // modals should always render at normal size regardless of the page behind them.
+    if(main.style.zoom !== '100%') main.style.zoom = '100%';
+    return;
+  }
   main.style.zoom = '100%'; // reset first so scrollHeight reflects the true, unzoomed size
   const available = main.clientHeight;
   const natural = main.scrollHeight;
@@ -860,7 +869,15 @@ function attachShellHandlers(){
     };
   });
   const out = document.getElementById('logout-btn');
-  if(out) out.onclick = ()=>{ stopQrRotation(); stopBackgroundSync(); state.officerRotating=false; state.currentUser=null; state.route='login'; state.err=''; render(); };
+  if(out) out.onclick = ()=>{
+    // a full reload, not just an in-memory state reset, is the safest way to guarantee
+    // nothing from this session (which sub-page was open, an in-progress sheet draft, etc.)
+    // carries over into the next login on this same browser tab — manually resetting every
+    // individual state field is fragile and easy to miss something as the app grows
+    stopQrRotation();
+    stopBackgroundSync();
+    window.location.reload();
+  };
 }
 
 /* ---------------- STUDENT ---------------- */

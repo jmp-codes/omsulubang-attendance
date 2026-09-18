@@ -385,7 +385,11 @@ function attachSheetCommonHandlers(){
     ['sh-footerlabel','footerLabel'], ['sh-siglabel','signatureLabel']
   ].forEach(([id,field])=>{
     const el = document.getElementById(id);
-    if(el) el.oninput = ()=>{ state.sheetSettingsDraft[field] = el.value; reRenderPreservingFocus(); };
+    // no re-render needed here at all — the input already shows what was typed, and nothing
+    // else on screen needs to reflect this field live while the settings modal is open (the
+    // settings and preview modals are never both open at once, so there's no live preview to
+    // update either). A full-page re-render on every keystroke was the actual flicker cause.
+    if(el) el.oninput = ()=>{ state.sheetSettingsDraft[field] = el.value; };
   });
   // title/date/time/venue only affect small text spans repeated across every printed page —
   // patch them directly instead of a full re-render, which is what caused flicker on every keystroke
