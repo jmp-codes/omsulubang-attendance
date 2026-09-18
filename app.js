@@ -80,6 +80,66 @@ async function renameStudentId(oldId, newId, updatedUserObj){
   if(attendanceTouched) await saveKey('attendance', DB.attendance);
   return { ok:true };
 }
+// renaming a department or section in place — updates every place the old name is referenced
+// (the department/sections lists themselves, every student/officer account, every event, and
+// every historical attendance record) rather than requiring a remove+re-add, which would
+// silently orphan everyone currently assigned to the old name from the official picker lists
+async function renameDepartment(oldName, newName){
+  oldName = (oldName||'').trim(); newName = (newName||'').trim();
+  if(!newName) return { ok:false, error:'Department name cannot be empty.' };
+  if(newName === oldName) return { ok:true };
+  DB.departments = await fetchKey('departments', DB.departments);
+  DB.sections = await fetchKey('sections', DB.sections);
+  DB.users = await fetchKey('users', DB.users);
+  DB.events = await fetchKey('events', DB.events);
+  DB.attendance = await fetchKey('attendance', DB.attendance);
+  if(DB.departments.some(d=>d.toLowerCase()===newName.toLowerCase() && d!==oldName)){
+    return { ok:false, error:'A department with that name already exists.' };
+  }
+  DB.departments = DB.departments.map(d=>d===oldName ? newName : d);
+  if(DB.sections[oldName]){ DB.sections[newName] = DB.sections[oldName]; delete DB.sections[oldName]; }
+  Object.values(DB.users).forEach(u=>{ if(u.department===oldName) u.department = newName; });
+  DB.events.forEach(e=>{ e.departments = (e.departments||[]).map(d=>d===oldName ? newName : d); });
+  DB.attendance.forEach(a=>{ if(a.department===oldName) a.department = newName; });
+  await Promise.all([
+    saveKey('departments', DB.departments),
+    saveKey('sections', DB.sections),
+    saveKey('users', DB.users),
+    saveKey('events', DB.events),
+    saveKey('attendance', DB.attendance)
+  ]);
+  return { ok:true };
+}
+async function renameSection(dept, oldName, newName){
+  newName = (newName||'').trim();
+  if(!newName) return { ok:false, error:'Section name cannot be empty.' };
+  if(normSection(newName) === normSection(oldName)) return { ok:true };
+  DB.sections = await fetchKey('sections', DB.sections);
+  DB.users = await fetchKey('users', DB.users);
+  DB.events = await fetchKey('events', DB.events);
+  DB.attendance = await fetchKey('attendance', DB.attendance);
+  const list = DB.sections[dept] || [];
+  if(list.some(s=>normSection(s)===normSection(newName) && s!==oldName)){
+    return { ok:false, error:'That section already exists for this department.' };
+  }
+  DB.sections[dept] = list.map(s=>s===oldName ? newName : s);
+  Object.values(DB.users).forEach(u=>{
+    if(u.department===dept && normSection(u.section)===normSection(oldName)) u.section = newName;
+  });
+  DB.events.forEach(e=>{
+    if(e.sections && e.sections.length) e.sections = e.sections.map(s=>normSection(s)===normSection(oldName) ? newName : s);
+  });
+  DB.attendance.forEach(a=>{
+    if(a.department===dept && normSection(a.section)===normSection(oldName)) a.section = newName;
+  });
+  await Promise.all([
+    saveKey('sections', DB.sections),
+    saveKey('users', DB.users),
+    saveKey('events', DB.events),
+    saveKey('attendance', DB.attendance)
+  ]);
+  return { ok:true };
+}
 
 /* ---------------- clock-skew correction ----------------
    QR expiry compares a timestamp created on one device (the officer's) against a check
@@ -242,7 +302,7 @@ function renderAppDialog(){
   <div class="modal-overlay" id="app-dialog-overlay">
     <div class="modal-card" style="max-width:440px;">
       <p style="margin-top:0; font-size:14.5px; line-height:1.6; white-space:pre-line;">${d.message}</p>
-      ${d.mode==='prompt' ? `<div class="field"><input autocomplete="off" id="app-dialog-input" placeholder="${d.promptPlaceholder}"></div>` : ''}
+      ${d.mode==='prompt' ? `<div class="field"><input autocomplete="off" id="app-dialog-input" placeholder="${d.promptPlaceholder}" value="${(d.defaultValue||'').replace(/"/g,'&quot;')}"></div>` : ''}
       <div style="display:flex; gap:10px; margin-top:16px;">
         ${d.mode!=='alert' ? `<button class="btn-ghost" id="app-dialog-cancel" style="flex:1;">${d.cancelLabel}</button>` : ''}
         <button class="${d.danger?'btn-danger':'btn-primary'}" id="app-dialog-confirm" style="flex:1;">${d.confirmLabel}</button>
@@ -274,7 +334,7 @@ function attachAppDialogHandlers(){
   overlay.onclick = (e)=>{ if(e.target===overlay && d.mode!=='alert'){ finish(d.mode==='prompt' ? null : false); } };
   if(d.mode==='prompt'){
     const input = document.getElementById('app-dialog-input');
-    if(input){ input.focus(); input.onkeydown = (e)=>{ if(e.key==='Enter') confirmBtn.click(); }; }
+    if(input){ input.focus(); input.select(); input.onkeydown = (e)=>{ if(e.key==='Enter') confirmBtn.click(); }; }
   }
 }
 // disables a button and swaps its label to a "Saving…" state for the duration of an async
@@ -1865,11 +1925,15 @@ function renderAdminDepartments(){
     <div class="card" style="padding:12px 14px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
         <div style="font-weight:700; font-size:14px;">${dept} <span class="hint" style="display:inline; margin:0; text-transform:none; letter-spacing:0; font-weight:400;">(${sections.length} section${sections.length===1?'':'s'})</span> ${deptInUse.has(dept)?'<span class="pill gold" style="margin-left:6px;">in use</span>':''}</div>
-        <button class="btn-danger" data-del-dept="${dept}" style="padding:5px 10px; font-size:12px;">Remove department</button>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          <button class="btn-ghost" data-rename-dept="${dept}" style="padding:5px 10px; font-size:12px;">Rename</button>
+          <button class="btn-danger" data-del-dept="${dept}" style="padding:5px 10px; font-size:12px;">Remove department</button>
+        </div>
       </div>
       ${sections.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
         ${sections.map(s=>`
           <span class="section-chip">${s} ${sectionInUse.has(normSection(s))?'<span class="pill gold" style="margin-left:4px;">in use</span>':''}
+            <button class="chip-edit" data-rename-section-dept="${dept}" data-rename-section-name="${s}" aria-label="Rename section" title="Rename">&#9998;</button>
             <button class="chip-x" data-del-section-dept="${dept}" data-del-section-name="${s}" data-del-section-inuse="${sectionInUse.has(normSection(s))}" aria-label="Remove section">&times;</button>
           </span>`).join('')}
       </div>` : `<span class="hint" style="margin:0 0 8px 0; display:block;">No sections yet for this department.</span>`}
@@ -2524,6 +2588,31 @@ function attachAdminHandlers(){
     state.err='';
     render();
   };
+  document.querySelectorAll('[data-rename-dept]').forEach(el=>{
+    el.onclick = async ()=>{
+      const oldName = el.dataset.renameDept;
+      const newName = await promptDialog(`Rename "${oldName}" to:`, {defaultValue: oldName, confirmLabel:'Rename'});
+      if(newName===null || newName.trim()===oldName) return;
+      const result = await renameDepartment(oldName, newName);
+      if(!result.ok){ state.err = result.error; render(); return; }
+      await logAdminAction('Renamed department', `${oldName} → ${newName.trim()}`);
+      state.err='';
+      render();
+    };
+  });
+  document.querySelectorAll('[data-rename-section-dept]').forEach(el=>{
+    el.onclick = async ()=>{
+      const dept = el.dataset.renameSectionDept;
+      const oldName = el.dataset.renameSectionName;
+      const newName = await promptDialog(`Rename section "${oldName}" (${dept}) to:`, {defaultValue: oldName, confirmLabel:'Rename'});
+      if(newName===null || normSection(newName.trim())===normSection(oldName)) return;
+      const result = await renameSection(dept, oldName, newName);
+      if(!result.ok){ state.err = result.error; render(); return; }
+      await logAdminAction('Renamed section', `${oldName} → ${newName.trim()} (${dept})`);
+      state.err='';
+      render();
+    };
+  });
   document.querySelectorAll('[data-del-dept]').forEach(el=>{
     el.onclick = async ()=>{
       const dept = el.dataset.delDept;
