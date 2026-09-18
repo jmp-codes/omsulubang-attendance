@@ -454,7 +454,14 @@ function attachSheetCommonHandlers(){
     render();
   };
   const printSheetBtn = document.getElementById('print-sheet-btn');
-  if(printSheetBtn) printSheetBtn.onclick = ()=>{ window.print(); };
+  if(printSheetBtn) printSheetBtn.onclick = ()=>{
+    // the printable sheet only exists in the DOM once the preview modal has rendered it —
+    // printing directly from this button (without opening Preview first) used to try to
+    // print an element that was never actually there, producing a blank page
+    state.sheetPreviewModalOpen = true;
+    render();
+    setTimeout(()=>{ window.print(); }, 50);
+  };
   const printSheetBtnModal = document.getElementById('print-sheet-btn-modal');
   if(printSheetBtnModal) printSheetBtnModal.onclick = ()=>{ window.print(); };
   const openSheetPreviewBtn = document.getElementById('open-sheet-preview-btn');
