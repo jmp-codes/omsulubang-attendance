@@ -470,6 +470,7 @@ let state = {
   recordsShown:false,
   showAttendanceStudentId:null,
   recordsPage:1,
+  recordsSearchQuery:'',
   exportModalOpen:false,
   attendeesPage:1,
   lastResetPassword:null,
@@ -1674,26 +1675,27 @@ function renderProfile(){
       <div class="field"><label>Sex</label><select id="prof-sex"><option value="">Select</option><option value="M" ${u.sex==='M'?'selected':''}>Male</option><option value="F" ${u.sex==='F'?'selected':''}>Female</option></select></div>
       <div class="field"><label>Department</label><select id="prof-dept">${DB.departments.map(dep=>`<option ${u.department===dep?'selected':''}>${dep}</option>`).join('')}</select></div>
       <div class="field"><label>Section</label><select id="prof-section">${sectionOptions(u.department, u.section)}</select></div>
-      <div class="hint" style="margin-top:-8px; margin-bottom:10px;">Only your own department and section's QR code will check you in. Changing your Student ID keeps your full attendance history attached to the new one — nothing is lost.</div>
+      <div class="callout">Only your own department and section's QR code will check you in. Changing your Student ID keeps your full attendance history attached to the new one — nothing is lost.</div>
     ` : ''}
     ${u.role==='officer' ? `
-      <div class="field"><label>Username</label><input autocomplete="off" value="${u.username}" disabled style="background:var(--bg); color:var(--ink-soft);"></div>
-      <div class="field"><label>Department</label><input autocomplete="off" value="${u.department}" disabled style="background:var(--bg); color:var(--ink-soft);"></div>
-      <div class="field"><label>Section</label><input autocomplete="off" value="${u.section || 'All sections (department officer)'}" disabled style="background:var(--bg); color:var(--ink-soft);"></div>
-      <div class="hint" style="margin-top:-8px; margin-bottom:10px;">Department/section reassignment is handled by the system admin, under Manage Officers.</div>
+      <div class="readonly-row"><span class="readonly-label">Username</span><span class="readonly-value mono">${u.username}</span></div>
+      <div class="readonly-row"><span class="readonly-label">Department</span><span class="readonly-value">${u.department}</span></div>
+      <div class="readonly-row"><span class="readonly-label">Section</span><span class="readonly-value">${u.section || 'All sections (department officer)'}</span></div>
+      <div class="hint" style="margin-top:10px; margin-bottom:10px;">Department/section reassignment is handled by the system admin, under Manage Officers.</div>
     ` : ''}
     ${u.role==='ssg' ? `
-      <div class="field"><label>Username</label><input autocomplete="off" value="${u.username}" disabled style="background:var(--bg); color:var(--ink-soft);"></div>
-      <div class="hint" style="margin-top:-8px; margin-bottom:10px;">SSG accounts can take attendance across every department and section — no department/section assignment applies.</div>
+      <div class="readonly-row"><span class="readonly-label">Username</span><span class="readonly-value mono">${u.username}</span></div>
+      <div class="hint" style="margin-top:10px; margin-bottom:10px;">SSG accounts can take attendance across every department and section — no department/section assignment applies.</div>
     ` : ''}
     ${u.role==='admin' ? `
-      <div class="field"><label>Username</label><input autocomplete="off" value="${u.username}" disabled style="background:var(--bg); color:var(--ink-soft);"></div>
+      <div class="readonly-row"><span class="readonly-label">Username</span><span class="readonly-value mono">${u.username}</span></div>
     ` : ''}
     ${state.profileMsg==='saved' ? `<div class="pill green" style="margin-bottom:10px;">Details saved</div>` : ''}
     <button class="btn-primary" style="width:100%;" id="save-profile-btn">Save details</button>
   </div>
   <div class="section-title">Change password</div>
-  <div class="card" style="max-width:440px;">
+  <div class="card card-security" style="max-width:440px;">
+    <div class="security-card-tag"><span class="security-icon">&#128274;</span> Security</div>
     ${pwField('prof-cur-pw', 'Current password')}
     ${pwField('prof-new-pw', 'New password')}
     ${pwField('prof-confirm-pw', 'Confirm new password')}
@@ -2084,10 +2086,13 @@ function renderAdminStudents(){
     </div>
     ${sectionsForDept.length>0 ? `
     <div class="section-tab-row">
-      <button class="section-tab ${sectionFilter==='all'?'active':''}" data-student-section="all">All sections</button>
-      ${sectionsForDept.map(sec=>`<button class="section-tab ${normSection(sectionFilter)===normSection(sec)?'active':''}" data-student-section="${sec}">${sec}</button>`).join('')}
+      <button class="section-tab ${sectionFilter==='all'?'active':''}" data-student-section="all">All sections <span class="chip-count-sm">${allStudents.filter(s=>s.department===deptFilter).length}</span></button>
+      ${sectionsForDept.map(sec=>{
+        const count = allStudents.filter(s=>s.department===deptFilter && normSection(s.section)===normSection(sec)).length;
+        return `<button class="section-tab ${normSection(sectionFilter)===normSection(sec)?'active':''}" data-student-section="${sec}">${sec} <span class="chip-count-sm">${count}</span></button>`;
+      }).join('')}
     </div>` : ''}
-    <div class="field student-search-field">
+    <div class="field student-search-field search-field-icon">
       <label>Search ${deptFilter==='all'?'all departments':'in ' + deptFilter}</label>
       <input autocomplete="off" id="student-search" value="${state.studentSearchQuery||''}" placeholder="Name or student ID">
     </div>
@@ -2096,7 +2101,7 @@ function renderAdminStudents(){
   <div class="card" style="padding:0;">
     <table id="student-table">
       <tr><th>Name</th><th>ID</th><th style="width:50px;">Sex</th><th>Department</th><th>Section</th><th></th></tr>
-      ${pageStudents.map(s=>`<tr><td>${s.name}</td><td class="mono">${s.id}</td><td>${s.sex || '<span class="pill gold">—</span>'}</td><td><span class="badge-dept">${s.department}</span></td><td>${s.section||'—'}</td><td><button class="btn-ghost" data-edit-student="${s.id}" style="margin-right:6px;">Edit</button><button class="btn-danger" data-reset-student="${s.id}">Reset password</button></td></tr>`).join('') || `<tr><td colspan="6" class="empty">No students in ${deptFilter==='all'?'the system':'this department'} yet.</td></tr>`}
+      ${pageStudents.map(s=>`<tr><td>${s.name}</td><td class="mono">${s.id}</td><td>${s.sex || '<span class="cell-dash">—</span>'}</td><td><span class="badge-dept">${s.department}</span></td><td>${s.section||'<span class="cell-dash">—</span>'}</td><td><button class="btn-ghost" data-edit-student="${s.id}" style="margin-right:6px;">Edit</button><button class="btn-ghost" data-reset-student="${s.id}">Reset password</button></td></tr>`).join('') || `<tr><td colspan="6" class="empty">No students in ${deptFilter==='all'?'the system':'this department'} yet.</td></tr>`}
     </table>
   </div>
   ${paginationControls(page, totalPages, 'student')}
@@ -2193,11 +2198,14 @@ function renderAdminOfficers(){
     </div>
     ${(officerDeptFilter!=='all' && officerDeptFilter!=='ssg') ? `
     <div class="section-tab-row">
-      <button class="section-tab ${officerSectionFilter==='all'?'active':''}" data-officer-section="all">All sections</button>
-      ${sectionsForOfficerDept.map(sec=>`<button class="section-tab ${normSection(officerSectionFilter)===normSection(sec)?'active':''}" data-officer-section="${sec}">${sec}</button>`).join('')}
-      <button class="section-tab ${officerSectionFilter==='__dept_officer__'?'active':''}" data-officer-section="__dept_officer__">Department Officer</button>
+      <button class="section-tab ${officerSectionFilter==='all'?'active':''}" data-officer-section="all">All sections <span class="chip-count-sm">${typedOfficers.filter(o=>o.department===officerDeptFilter).length}</span></button>
+      ${sectionsForOfficerDept.map(sec=>{
+        const count = typedOfficers.filter(o=>o.department===officerDeptFilter && o.oType==='section' && normSection(o.section)===normSection(sec)).length;
+        return `<button class="section-tab ${normSection(officerSectionFilter)===normSection(sec)?'active':''}" data-officer-section="${sec}">${sec} <span class="chip-count-sm">${count}</span></button>`;
+      }).join('')}
+      <button class="section-tab ${officerSectionFilter==='__dept_officer__'?'active':''}" data-officer-section="__dept_officer__">Department Officer <span class="chip-count-sm">${typedOfficers.filter(o=>o.department===officerDeptFilter && o.oType==='department').length}</span></button>
     </div>` : ''}
-    <div class="field student-search-field">
+    <div class="field student-search-field search-field-icon">
       <label>Search</label>
       <input autocomplete="off" id="officer-search" value="${state.officerSearchQuery||''}" placeholder="Name or username">
     </div>
@@ -2206,7 +2214,7 @@ function renderAdminOfficers(){
   <div class="card" style="padding:0;">
     <table id="officer-table">
       <tr><th>Name</th><th>Username</th><th>Type</th><th>Department</th><th>Section</th><th></th></tr>
-      ${officers.map(o=>`<tr><td>${o.name}</td><td class="mono">${o.username}</td><td>${pillFor(o.oType)}</td><td>${o.oType==='ssg'?'—':`<span class="badge-dept">${o.department}</span>`}</td><td>${o.oType==='section' ? (o.section||'<span class="pill gold">not set</span>') : (o.oType==='department' ? '<span class="pill gold">all sections</span>' : '—')}</td><td><button class="btn-ghost" data-edit-officer="${o.username}" style="margin-right:6px;">Edit</button><button class="btn-ghost" data-reset-officer="${o.username}" style="margin-right:6px;">Reset password</button><button class="btn-danger" data-del-officer="${o.username}">Remove</button></td></tr>`).join('') || `<tr><td colspan="6" class="empty">No officers match this filter.</td></tr>`}
+      ${officers.map(o=>`<tr><td>${o.name}</td><td class="mono">${o.username}</td><td>${pillFor(o.oType)}</td><td>${o.oType==='ssg'?'<span class="cell-dash">—</span>':`<span class="badge-dept">${o.department}</span>`}</td><td>${o.oType==='section' ? (o.section||'<span class="pill gold">not set</span>') : (o.oType==='department' ? '<span class="pill gold">all sections</span>' : '<span class="cell-dash">—</span>')}</td><td><span class="row-action-group"><button class="btn-ghost" data-edit-officer="${o.username}">Edit</button><button class="btn-ghost" data-reset-officer="${o.username}">Reset password</button></span><button class="btn-danger" data-del-officer="${o.username}" style="margin-left:8px;">Remove</button></td></tr>`).join('') || `<tr><td colspan="6" class="empty">No officers match this filter.</td></tr>`}
     </table>
   </div>
   ${paginationControls(page, totalPages, 'officer')}
@@ -2276,7 +2284,9 @@ function renderAdminRecords(){
     byStudent[r.studentId].scopes.add(r.scope);
     byStudent[r.studentId].latest = Math.max(byStudent[r.studentId].latest, r.amTimeIn||0, r.pmTimeIn||0);
   });
-  const studentRows = Object.values(byStudent).sort((a,b)=>b.latest-a.latest);
+  let studentRows = Object.values(byStudent).sort((a,b)=>b.latest-a.latest);
+  const rq = (state.recordsSearchQuery||'').trim().toLowerCase();
+  if(rq) studentRows = studentRows.filter(s=>(s.studentName+' '+s.studentId).toLowerCase().includes(rq));
   const { items: pageStudents, totalPages, page } = paginate(studentRows, state.recordsPage, getAutoPageSize('records', 500));
   return `
   <div class="page-head"><h1>All Records</h1><p>Full attendance log across every event, department, and desk (section, department, or SSG).</p></div>
@@ -2300,10 +2310,14 @@ function renderAdminRecords(){
       <button class="section-tab ${sectionFilter==='all'?'active':''}" data-section="all">All sections</button>
       ${sectionsForDept.map(sec=>`<button class="section-tab ${normSection(sectionFilter)===normSection(sec)?'active':''}" data-section="${sec}">${sec}</button>`).join('')}
     </div>` : ''}
+    <div class="field search-field-icon" style="margin-top:12px; margin-bottom:0; max-width:320px;">
+      <label>Search</label>
+      <input autocomplete="off" id="records-search" value="${state.recordsSearchQuery||''}" placeholder="Name or student ID">
+    </div>
   </div>
   <div style="margin-bottom:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
-    ${canBulkReset ? `<button class="btn-gold" id="export-attendees-btn" ${studentRows.length===0?'disabled':''}>Export attendee list (${studentRows.length})</button>` : ''}
-    ${canBulkReset ? `<button class="btn-danger" id="bulk-reset-records-btn" ${rows.length===0?'disabled':''}>Reset all ${rows.length} record${rows.length===1?'':'s'} shown below</button>` : ''}
+    <button class="btn-gold" id="export-attendees-btn" ${(!canBulkReset || studentRows.length===0)?'disabled':''}>Export attendee list${canBulkReset ? ` (${studentRows.length})` : ''}</button>
+    <button class="btn-danger" id="bulk-reset-records-btn" ${(!canBulkReset || rows.length===0)?'disabled':''}>Reset all${canBulkReset ? ` ${rows.length} record${rows.length===1?'':'s'} shown below` : ' records shown below'}</button>
   </div>
   <div style="margin-bottom:10px;">
     ${canBulkReset ? `
@@ -2316,7 +2330,7 @@ function renderAdminRecords(){
   <div class="card" style="padding:0;">
     <table id="records-table">
       <tr><th>Student</th><th>Department</th><th>Recorded via</th><th></th></tr>
-      ${pageStudents.map(s=>`<tr><td>${s.studentName} <span style="color:var(--ink-soft);">(${s.studentId})</span></td><td><span class="badge-dept">${s.department}</span></td><td>${[...s.scopes].map(sc=>scopePill(sc)).join(' ')}</td><td><button class="btn-gold" data-show-attendance="${s.studentId}">Show Attendance</button></td></tr>`).join('') || `<tr><td colspan="4" class="empty">No records match this filter.</td></tr>`}
+      ${pageStudents.map(s=>`<tr><td>${s.studentName} <span style="color:var(--ink-soft);">(${s.studentId})</span></td><td><span class="badge-dept">${s.department}</span></td><td>${[...s.scopes].map(sc=>scopePill(sc)).join(' ')}</td><td><button class="btn-ghost" data-show-attendance="${s.studentId}">Show Attendance</button></td></tr>`).join('') || `<tr><td colspan="4" class="empty">No records match this filter.</td></tr>`}
     </table>
   </div>
   ${paginationControls(page, totalPages, 'records')}
@@ -2620,6 +2634,12 @@ function attachAdminHandlers(){
   if(officerPrevBtn) officerPrevBtn.onclick = ()=>{ state.officerPage = Math.max(1, (state.officerPage||1)-1); render(); };
   const officerNextBtn = document.getElementById('officer-next-btn');
   if(officerNextBtn) officerNextBtn.onclick = ()=>{ state.officerPage = (state.officerPage||1)+1; render(); };
+  const recordsSearch = document.getElementById('records-search');
+  if(recordsSearch) recordsSearch.oninput = ()=>{
+    state.recordsSearchQuery = recordsSearch.value;
+    state.recordsPage = 1;
+    reRenderPreservingFocus();
+  };
   const fe = document.getElementById('filter-event');
   if(fe) fe.onchange = async ()=>{ state.adminFilterEvent = fe.value; state.recordsPage = 1; DB.attendance = await fetchKey('attendance', DB.attendance); render(); };
   const fd = document.getElementById('filter-dept');

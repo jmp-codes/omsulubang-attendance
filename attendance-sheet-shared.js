@@ -105,6 +105,7 @@ function handleSheetLogoDragMove(e){
   if(state.sheetSettingsDraft){
     state.sheetSettingsDraft[sheetDragState.key+'LogoX'] = newX;
     state.sheetSettingsDraft[sheetDragState.key+'LogoY'] = newY;
+    state.sheetSettingsDirty = true;
   }
   // the same logo can appear on multiple printed pages — keep every instance in sync live, not just the one being dragged
   document.querySelectorAll(`.ps-draggable-logo[data-logo="${sheetDragState.key}"]`).forEach(img=>{
@@ -134,8 +135,8 @@ function renderSheetSettingsModal(){
     <div class="modal-card" style="max-width:640px;">
       <button class="close-x" id="close-sheet-settings-btn">&times;</button>
       <h3 style="margin-top:0;">Sheet header &amp; footer</h3>
-      <p class="hint" style="margin-top:-6px;">Saved once and reused for every sheet anyone prints — Admin, Department, and SSG all share the same header/footer.</p>
-      <div class="section-title" style="margin-top:14px;">Header</div>
+      <p class="hint" style="margin-top:-6px;">These settings apply only to your own role's sheets — Admin, Department, and SSG each keep separate header/footer details.</p>
+      <div class="section-title" style="margin-top:14px;">Header — logos</div>
       <div class="row">
         <div class="field" style="flex:1;">
           <label>Left logo</label>
@@ -164,6 +165,8 @@ function renderSheetSettingsModal(){
           ` : ''}
         </div>
       </div>
+      <div class="sheet-settings-divider"></div>
+      <div class="section-title">Institution details</div>
       <div class="row">
         <div class="field" style="flex:1;"><label>University / institution name</label><input autocomplete="off" id="sh-university" value="${s.university}"></div>
       </div>
@@ -174,11 +177,14 @@ function renderSheetSettingsModal(){
         <div class="field" style="flex:1;"><label>Tel/Fax</label><input autocomplete="off" id="sh-telfax" value="${s.telfax}"></div>
       </div>
       <div class="field"><label>College / unit name</label><input autocomplete="off" id="sh-collegeunit" value="${s.collegeUnit}" placeholder="( Name of College/Unit )"></div>
+      <div class="sheet-settings-divider"></div>
+      <div class="section-title">Document control</div>
       <div class="row">
         <div class="field" style="flex:1;"><label>Reference No.</label><input autocomplete="off" id="sh-refno" value="${s.refNo}"></div>
         <div class="field" style="flex:1;"><label>Effectivity date</label><input autocomplete="off" id="sh-effdate" value="${s.effectivityDate}" placeholder="e.g. June 29, 2026"></div>
         <div class="field" style="flex:1;"><label>Revision No.</label><input autocomplete="off" id="sh-revno" value="${s.revisionNo}"></div>
       </div>
+      <div class="sheet-settings-divider"></div>
       <div class="section-title">Footer</div>
       <div class="field">
         <label>Footer logo</label>
@@ -205,6 +211,7 @@ function renderSheetSettingsModal(){
         <div class="field" style="flex:1;"><label>Signature line label</label><input autocomplete="off" id="sh-siglabel" value="${s.signatureLabel}"></div>
       </div>
       ${state.err ? `<div class="err">${state.err}</div>` : ''}
+      <div id="sheet-settings-unsaved" class="unsaved-badge" style="display:${state.sheetSettingsDirty ? 'block' : 'none'};">Unsaved changes</div>
       <button class="btn-primary" style="width:100%;" id="save-sheet-settings-btn">Save header &amp; footer</button>
       <button class="btn-ghost" style="width:100%; margin-top:8px;" id="close-sheet-settings-btn-2">Close</button>
     </div>
@@ -296,12 +303,17 @@ function renderSheetPreviewModal(s, d, chunks, activePage){
    (logos, university info, footer), the preview modal (zoom, paging, print). Each role-specific
    file calls this once, then wires its own page's unique fields (event/session pickers etc.)
    on top of it. */
+function markSheetSettingsUnsaved(){
+  state.sheetSettingsDirty = true;
+  const badge = document.getElementById('sheet-settings-unsaved');
+  if(badge) badge.style.display = 'block';
+}
 function attachSheetCommonHandlers(){
   function readImageAsDataUrl(file, cb){
     if(!file) return;
     if(file.size > 1.5*1024*1024){ state.err = 'That image is a bit large — please use one under 1.5MB.'; render(); return; }
     const reader = new FileReader();
-    reader.onload = ()=>{ cb(reader.result); render(); };
+    reader.onload = ()=>{ cb(reader.result); state.sheetSettingsDirty = true; render(); };
     reader.readAsDataURL(file);
   }
   const leftLogoInput = document.getElementById('left-logo-input');
@@ -313,15 +325,15 @@ function attachSheetCommonHandlers(){
     readImageAsDataUrl(rightLogoInput.files[0], (dataUrl)=>{ state.sheetSettingsDraft.rightLogo = dataUrl; });
   };
   const removeLeftLogo = document.getElementById('remove-left-logo-btn');
-  if(removeLeftLogo) removeLeftLogo.onclick = ()=>{ state.sheetSettingsDraft.leftLogo = ''; render(); };
+  if(removeLeftLogo) removeLeftLogo.onclick = ()=>{ state.sheetSettingsDraft.leftLogo = ''; state.sheetSettingsDirty = true; render(); };
   const removeRightLogo = document.getElementById('remove-right-logo-btn');
-  if(removeRightLogo) removeRightLogo.onclick = ()=>{ state.sheetSettingsDraft.rightLogo = ''; render(); };
+  if(removeRightLogo) removeRightLogo.onclick = ()=>{ state.sheetSettingsDraft.rightLogo = ''; state.sheetSettingsDirty = true; render(); };
   const footerLogoInput = document.getElementById('footer-logo-input');
   if(footerLogoInput) footerLogoInput.onchange = ()=>{
     readImageAsDataUrl(footerLogoInput.files[0], (dataUrl)=>{ state.sheetSettingsDraft.footerLogo = dataUrl; });
   };
   const removeFooterLogo = document.getElementById('remove-footer-logo-btn');
-  if(removeFooterLogo) removeFooterLogo.onclick = ()=>{ state.sheetSettingsDraft.footerLogo = ''; render(); };
+  if(removeFooterLogo) removeFooterLogo.onclick = ()=>{ state.sheetSettingsDraft.footerLogo = ''; state.sheetSettingsDirty = true; render(); };
   // logo size sliders — update the live preview + label directly, no re-render, so a mid-drag
   // render() never interrupts the browser's native slider-dragging state
   [['left-logo-size','leftLogoSize','left'], ['right-logo-size','rightLogoSize','right']].forEach(([id, field, key])=>{
@@ -335,6 +347,7 @@ function attachSheetCommonHandlers(){
       });
       const label = slider.previousElementSibling;
       if(label) label.textContent = `Size (${val}px)`;
+      markSheetSettingsUnsaved();
     };
   });
   // footer logo is a wide rectangular badge shape, not square — width and height adjust independently
@@ -345,6 +358,7 @@ function attachSheetCommonHandlers(){
     document.querySelectorAll('.ps-draggable-logo[data-logo="footer"]').forEach(img=>{ img.style.width = val+'px'; });
     const label = footerWidthSlider.previousElementSibling;
     if(label) label.textContent = `Width (${val}px)`;
+    markSheetSettingsUnsaved();
   };
   const footerHeightSlider = document.getElementById('footer-logo-height');
   if(footerHeightSlider) footerHeightSlider.oninput = ()=>{
@@ -353,12 +367,14 @@ function attachSheetCommonHandlers(){
     document.querySelectorAll('.ps-draggable-logo[data-logo="footer"]').forEach(img=>{ img.style.height = val+'px'; });
     const label = footerHeightSlider.previousElementSibling;
     if(label) label.textContent = `Height (${val}px)`;
+    markSheetSettingsUnsaved();
   };
   [['reset-left-logo-pos-btn','left'], ['reset-right-logo-pos-btn','right'], ['reset-footer-logo-pos-btn','footer']].forEach(([id, key])=>{
     const btn = document.getElementById(id);
     if(btn) btn.onclick = ()=>{
       state.sheetSettingsDraft[key+'LogoX'] = 0;
       state.sheetSettingsDraft[key+'LogoY'] = 0;
+      state.sheetSettingsDirty = true;
       render();
     };
   });
@@ -389,7 +405,10 @@ function attachSheetCommonHandlers(){
     // else on screen needs to reflect this field live while the settings modal is open (the
     // settings and preview modals are never both open at once, so there's no live preview to
     // update either). A full-page re-render on every keystroke was the actual flicker cause.
-    if(el) el.oninput = ()=>{ state.sheetSettingsDraft[field] = el.value; };
+    if(el) el.oninput = ()=>{
+      state.sheetSettingsDraft[field] = el.value;
+      markSheetSettingsUnsaved();
+    };
   });
   // title/date/time/venue only affect small text spans repeated across every printed page —
   // patch them directly instead of a full re-render, which is what caused flicker on every keystroke
@@ -438,7 +457,7 @@ function attachSheetCommonHandlers(){
     if(fitZoom && fitZoom !== state.sheetZoom) applySheetZoom(fitZoom);
   }
   const openSheetSettingsBtn = document.getElementById('open-sheet-settings-btn');
-  if(openSheetSettingsBtn) openSheetSettingsBtn.onclick = ()=>{ state.sheetSettingsModalOpen = true; state.err=''; render(); };
+  if(openSheetSettingsBtn) openSheetSettingsBtn.onclick = ()=>{ state.sheetSettingsModalOpen = true; state.sheetSettingsDirty = false; state.err=''; render(); };
   const closeSheetSettings = ()=>{ state.sheetSettingsModalOpen = false; state.err=''; render(); };
   const closeSheetBtn1 = document.getElementById('close-sheet-settings-btn');
   if(closeSheetBtn1) closeSheetBtn1.onclick = closeSheetSettings;
@@ -460,6 +479,7 @@ function attachSheetCommonHandlers(){
       }
     });
     state.sheetSettingsModalOpen = false;
+    state.sheetSettingsDirty = false;
     state.err = '';
     render();
   };
