@@ -549,6 +549,11 @@ function sectionOptions(dept, selected){
 
 function render(){
   const app = document.getElementById('app');
+  // the login/register screen can be taller than the viewport (long registration form on a
+  // short/mobile screen) and needs real page scrolling to reach whatever's below the fold —
+  // every other route relies on the shell's own zoom-fit-or-scroll handling instead, so this
+  // class is only ever on for 'login' (see the html.auth-mode rules in styles.css)
+  document.documentElement.classList.toggle('auth-mode', state.route==='login');
   if(state.route==='login'){ app.innerHTML = renderLogin(); attachLoginHandlers(); return; }
   if(state.route==='student'){ app.innerHTML = renderShell(renderStudent()); attachShellHandlers(); attachStudentHandlers(); autoFitMainContent(); scheduleMainFitRecheck(); return; }
   if(state.route==='officer'){ app.innerHTML = renderShell(renderOfficer()); attachShellHandlers(); attachOfficerHandlers(); autoFitMainContent(); scheduleMainFitRecheck(); return; }
