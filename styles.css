@@ -542,21 +542,37 @@
     th, td{padding:9px 8px;}
   }
 
-  /* ---------------- Attendance Sheet (print template) ---------------- */
+  /* ---------------- Attendance Sheet (print template) ----------------
+     .ps-page is the actual PHYSICAL PAGE — sized to exactly match the printed @page (8.5in x
+     13in), with its own 0.5in padding standing in for the printer margin. Because the on-screen
+     preview shows this same full-page box (just shrunk via the zoom control) instead of a box
+     that hugs the content, whatever blank space would appear on the printed page is visible in
+     the preview too — the two are now pixel-for-pixel the same layout, not just visually similar. */
+  .ps-page{
+    background:#fff;
+    width:8.5in;
+    height:13in;
+    box-sizing:border-box;
+    padding:0.5in;
+    flex-shrink:0;
+    box-shadow:0 4px 20px rgba(0,0,0,0.15);
+    border:1px solid #d9d9d9;
+  }
+  .ps-page.ps-preview-hidden{ display:none; }
   .print-sheet{
     background:#fff;
     color:#000;
     font-family:'Times New Roman', Times, serif;
-    padding:36px;
-    width:8.5in;
-    flex-shrink:0;
-    box-sizing:border-box;
-    box-shadow:0 4px 20px rgba(0,0,0,0.15);
-    border:1px solid #d9d9d9;
     -webkit-print-color-adjust:exact; print-color-adjust:exact; /* forces background-color elements (like the divider bars below) to actually print, since browsers silently drop them by default unless "Background graphics" is manually checked */
   }
   .print-sheet *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .ps-topline{display:flex; justify-content:space-between; font-size:10px; margin-bottom:18px; gap:12px;}
+  /* document-control block (Reference No. / Effectivity Date / Revision No.) — a small bordered
+     table in the top-right corner, the way these fields sit on the actual OMSU form, instead of
+     a loose line of text spanning the full width */
+  .ps-doccontrol-row{ display:flex; justify-content:flex-end; margin-bottom:10px; }
+  .ps-doccontrol{ border-collapse:collapse; font-size:9px; }
+  .ps-doccontrol td{ border:1px solid #000; padding:2px 6px; white-space:nowrap; }
+  .ps-doccontrol td.label{ font-weight:700; text-align:left; }
   .ps-header{position:relative; min-height:60px; padding:0 8px;}
   .ps-logo{position:absolute; top:50%; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; z-index:2;}
   .ps-logo.left{left:0;}
@@ -593,7 +609,6 @@
   .ps-footer-logo img{object-fit:contain;}
   .ps-sigline{border-bottom:1px solid #000; width:250px; margin-top:32px;}
   .ps-siglabel{font-size:11px; margin-top:2px;}
-  .print-sheet.ps-preview-hidden{ display:none; }
 
   @media print{
     body *{ visibility:hidden; }
@@ -611,11 +626,15 @@
     .sheet-preview-card{ position:static !important; max-width:none !important; max-height:none !important; overflow:visible !important; padding:0 !important; background:none !important; box-shadow:none !important; }
     .sheet-preview-viewport{ max-height:none !important; padding:0 !important; background:none !important; }
     .print-sheet-container{ position:absolute; top:0; left:0; width:8.5in; zoom:100% !important; }
-    .print-sheet{
-      width:8.5in; padding:0; margin:0; box-shadow:none; border:none;
+    /* @page below carries zero margin of its own — .ps-page's own 0.5in padding IS the margin,
+       both on screen and in print, so there is only one source of truth for where the margin
+       sits instead of two separate values that could drift apart (which is what made the
+       preview and the actual printout look different from each other). */
+    .ps-page{
+      width:8.5in; height:13in; padding:0.5in; box-shadow:none; border:none;
       page-break-after:always; break-after:page;
     }
-    .print-sheet.ps-preview-hidden{ display:block; } /* every sheet must print, even ones hidden from the on-screen preview */
-    .print-sheet:last-child{ page-break-after:auto; break-after:auto; }
-    @page{ size:8.5in 13in; margin:0.5in; }
+    .ps-page.ps-preview-hidden{ display:block; } /* every sheet must print, even ones hidden from the on-screen preview */
+    .ps-page:last-child{ page-break-after:auto; break-after:auto; }
+    @page{ size:8.5in 13in; margin:0; }
   }

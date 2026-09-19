@@ -69,7 +69,7 @@ function computeFitZoom(){
   if(!viewport) return null;
   const paddingAllowance = 56; // roughly the viewport's own left+right padding
   const availableWidth = viewport.clientWidth - paddingAllowance;
-  const naturalWidthPx = 8.5 * 96; // .print-sheet is fixed at 8.5in
+  const naturalWidthPx = 8.5 * 96; // .ps-page (the full physical page) is fixed at 8.5in
   if(availableWidth <= 0) return null;
   let zoom = Math.floor((availableWidth / naturalWidthPx) * 100);
   return Math.max(30, Math.min(150, zoom));
@@ -222,8 +222,15 @@ function renderOneSheet(s, d, attendeesChunk, pageIndex, isActive){
   const rowCount = attendeesChunk ? 30 : Math.max(1, Math.min(60, parseInt(d.rows,10) || 30));
   const rows = Array.from({length: rowCount}, (_, i) => i+1);
   return `
-    <div class="print-sheet${isActive ? '' : ' ps-preview-hidden'}">
-      <div class="ps-topline"><span>Reference No.: ${s.refNo}</span><span>Effectivity Date: ${s.effectivityDate}</span><span>Revision No. ${s.revisionNo}</span></div>
+    <div class="ps-page${isActive ? '' : ' ps-preview-hidden'}">
+    <div class="print-sheet">
+      <div class="ps-doccontrol-row">
+        <table class="ps-doccontrol">
+          <tr><td class="label">Reference No.</td><td>${s.refNo}</td></tr>
+          <tr><td class="label">Effectivity Date</td><td>${s.effectivityDate}</td></tr>
+          <tr><td class="label">Revision No.</td><td>${s.revisionNo}</td></tr>
+        </table>
+      </div>
       <div class="ps-header">
         <div class="ps-logo left">${s.leftLogo ? `<img class="ps-draggable-logo" data-logo="left" data-page="${pageIndex}" src="${s.leftLogo}" style="width:${s.leftLogoSize}px; height:${s.leftLogoSize}px; transform:translate(${s.leftLogoX}px, ${s.leftLogoY}px);">` : ''}</div>
         <div class="ps-headtext">
@@ -265,6 +272,7 @@ function renderOneSheet(s, d, attendeesChunk, pageIndex, isActive){
           ${s.footerLogo ? `<div class="ps-footer-logo"><img class="ps-draggable-logo" data-logo="footer" data-page="${pageIndex}" src="${s.footerLogo}" style="width:${s.footerLogoWidth}px; height:${s.footerLogoHeight}px; transform:translate(${s.footerLogoX}px, ${s.footerLogoY}px);"></div>` : ''}
         </div>
       </div>
+    </div>
     </div>`;
 }
 
@@ -426,7 +434,7 @@ function attachSheetCommonHandlers(){
   const sheetRowsEl = document.getElementById('sh-rows');
   if(sheetRowsEl) sheetRowsEl.oninput = ()=>{ state.sheetDraft.rows = sheetRowsEl.value; reRenderPreservingFocus(); };
   const goToSheetPage = (newPage)=>{
-    const sheets = document.querySelectorAll('#print-sheet .print-sheet');
+    const sheets = document.querySelectorAll('#print-sheet .ps-page');
     const totalPages = sheets.length;
     const clamped = Math.max(0, Math.min(totalPages-1, newPage));
     state.sheetPreviewPage = clamped;
