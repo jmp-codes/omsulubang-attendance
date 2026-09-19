@@ -202,16 +202,23 @@
   .login-form-panel{
     flex:1 1 54%;
     display:flex;
-    /* align-items:center here (vertically centering the card within this panel) is exactly
-       why switching from Log in to Create account visibly repositions the card: a short card
-       gets centered with a big top gap, a tall one gets centered with almost no top gap, so
-       the card's top edge jumps up the moment the taller form appears — even though nothing
-       about the hero or the tabs actually moved. Anchoring to a fixed top offset instead means
-       the card always starts at the same place; only its own bottom edge moves as it grows,
-       which is the "only the box itself adapts" behavior that was asked for. */
-    align-items:flex-start;
+    /* Plain align-items:center looked fine for any ONE form, but centered each one around its
+       own height — so a short card (Log in, Admin) sat with a big gap top and bottom, while a
+       tall one (Create account) sat with almost no gap, making the card visibly jump position
+       the moment you switched tabs. Pinning it to a fixed top offset (a prior attempt) fixed
+       the jump but broke the good centering every short form used to have, leaving a big dead
+       gap underneath it instead.
+       "safe center" is the actual fix: it centers normally whenever the content fits (so every
+       short form — Log in, Admin, Officer — looks centered exactly like before), and only
+       switches to top-anchored + scrollable when the content is too tall to center without
+       clipping (Create account on a short screen) — which is exactly the one case that needs
+       different handling, without punishing every other case for it. The plain "center" line
+       stays first as a fallback for the rare browser that doesn't understand "safe center" —
+       if it's unsupported, that whole line is ignored and normal centering still applies. */
+    align-items:center;
+    align-items:safe center;
     justify-content:center;
-    padding:64px 32px 32px 32px;
+    padding:32px;
     background:var(--bg);
   }
   .login-form-inner{
@@ -249,7 +256,7 @@
     .login-hero{flex:0 0 auto; padding:28px 24px;}
     .login-title{font-size:24px;}
     .hero-watermark{width:min(80vw,420px); height:min(80vw,420px);}
-    .login-form-panel{flex:1 1 auto; padding:28px 20px; align-items:flex-start;}
+    .login-form-panel{flex:1 1 auto; padding:28px 20px; align-items:center; align-items:safe center;}
   }
   @media (max-width:600px){
     /* on a phone, the hero (seal + title + tagline) was pushing the actual sign-in/register
