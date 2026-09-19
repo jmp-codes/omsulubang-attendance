@@ -2373,15 +2373,25 @@ function renderExportModal(studentRows, eventName){
     </div>
   </div>`;
 }
+function activityActionPill(action){
+  const a = (action||'').toLowerCase();
+  let cls = 'navy';
+  if(a.startsWith('deleted') || a.startsWith('removed') || a.startsWith('bulk-reset')) cls = 'danger';
+  else if(a.startsWith('created') || a.startsWith('added') || a.startsWith('recovered')) cls = 'green';
+  else if(a.startsWith('renamed') || a.startsWith('edited') || a.startsWith('reset')) cls = 'blue';
+  else if(a.startsWith('exported')) cls = 'gold';
+  return `<span class="pill ${cls}">${action}</span>`;
+}
 function renderAdminLog(){
   const log = DB.adminLog || [];
   const { items: pageEntries, totalPages, page } = paginate(log, state.logPage, getAutoPageSize('log', 260));
   return `
   <div class="page-head"><h1>Activity Log</h1><p>A record of actions taken from the admin panel — who did what, and when. Keeps the most recent 200 entries.</p></div>
   <div class="card" style="padding:0;">
-    <table id="activity-log-table">
-      <tr><th>When</th><th>Admin</th><th>Action</th><th>Details</th></tr>
-      ${pageEntries.map(l=>`<tr><td style="white-space:nowrap;">${fmtDate(l.timestamp)}</td><td>${l.actor}</td><td>${l.action}</td><td style="color:var(--ink-soft);">${l.details||'—'}</td></tr>`).join('') || `<tr><td colspan="4" class="empty">No admin actions recorded yet.</td></tr>`}
+    <table id="activity-log-table" class="log-table">
+      <colgroup><col style="width:130px;"><col style="width:170px;"><col style="width:180px;"><col></colgroup>
+      <tr class="log-table-head"><th>When</th><th>Admin</th><th>Action</th><th>Details</th></tr>
+      ${pageEntries.map(l=>`<tr><td data-label="When" style="white-space:nowrap;">${fmtDate(l.timestamp)}</td><td data-label="Admin">${l.actor}</td><td data-label="Action">${activityActionPill(l.action)}</td><td data-label="Details" style="color:var(--ink-soft);">${l.details||'—'}</td></tr>`).join('') || `<tr><td colspan="4" class="empty">No admin actions recorded yet.</td></tr>`}
     </table>
   </div>
   ${paginationControls(page, totalPages, 'log')}
