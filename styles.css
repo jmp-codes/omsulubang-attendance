@@ -202,9 +202,16 @@
   .login-form-panel{
     flex:1 1 54%;
     display:flex;
-    align-items:center;
+    /* align-items:center here (vertically centering the card within this panel) is exactly
+       why switching from Log in to Create account visibly repositions the card: a short card
+       gets centered with a big top gap, a tall one gets centered with almost no top gap, so
+       the card's top edge jumps up the moment the taller form appears — even though nothing
+       about the hero or the tabs actually moved. Anchoring to a fixed top offset instead means
+       the card always starts at the same place; only its own bottom edge moves as it grows,
+       which is the "only the box itself adapts" behavior that was asked for. */
+    align-items:flex-start;
     justify-content:center;
-    padding:32px;
+    padding:64px 32px 32px 32px;
     background:var(--bg);
   }
   .login-form-inner{
