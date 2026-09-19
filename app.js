@@ -554,7 +554,7 @@ function render(){
   // every other route relies on the shell's own zoom-fit-or-scroll handling instead, so this
   // class is only ever on for 'login' (see the html.auth-mode rules in styles.css)
   document.documentElement.classList.toggle('auth-mode', state.route==='login');
-  if(state.route==='login'){ app.innerHTML = renderLogin(); attachLoginHandlers(); return; }
+  if(state.route==='login'){ app.innerHTML = renderLogin(); attachLoginHandlers(); autoFitLoginContent(); scheduleMainFitRecheck(); return; }
   if(state.route==='student'){ app.innerHTML = renderShell(renderStudent()); attachShellHandlers(); attachStudentHandlers(); autoFitMainContent(); scheduleMainFitRecheck(); return; }
   if(state.route==='officer'){ app.innerHTML = renderShell(renderOfficer()); attachShellHandlers(); attachOfficerHandlers(); autoFitMainContent(); scheduleMainFitRecheck(); return; }
   if(state.route==='ssg'){ app.innerHTML = renderShell(renderSsg()); attachShellHandlers(); attachSsgHandlers(); autoFitMainContent(); scheduleMainFitRecheck(); return; }
@@ -608,22 +608,47 @@ function autoFitMainContent(){
     main.style.overflowX = 'hidden';
   }
 }
+/* Same shrink-to-fit idea as autoFitMainContent, applied to the login/register screen instead
+   of .main. Zooms the whole login-wrap (hero + form) down just enough that it fits within one
+   viewport height, so a tall registration form doesn't need scrolling on an average screen.
+   Floors at 60%, same as the dashboard, so text and tap targets never get shrunk past usable —
+   a very short viewport (e.g. a landscape phone) can still be too small even at the floor, and
+   html.auth-mode's own scrolling (see styles.css) is what covers that remaining case, exactly
+   the same two-layer fallback autoFitMainContent uses for the dashboard. */
+function autoFitLoginContent(){
+  const wrap = document.querySelector('.login-wrap');
+  if(!wrap) return;
+  if(document.querySelector('.modal-overlay')){
+    if(wrap.style.zoom !== '100%') wrap.style.zoom = '100%';
+    return;
+  }
+  wrap.style.zoom = '100%';
+  const availableH = window.innerHeight;
+  const naturalH = wrap.scrollHeight;
+  if(naturalH > availableH){
+    const pct = Math.max(60, Math.floor((availableH / naturalH) * 100));
+    wrap.style.zoom = pct + '%';
+  }
+}
+function runAutoFit(){
+  if(state.route==='login') autoFitLoginContent(); else autoFitMainContent();
+}
 let mainFitResizeDebounce = null;
 window.addEventListener('resize', ()=>{
   clearTimeout(mainFitResizeDebounce);
-  mainFitResizeDebounce = setTimeout(autoFitMainContent, 200);
+  mainFitResizeDebounce = setTimeout(runAutoFit, 200);
 });
 // fonts and any logo images can finish loading a moment AFTER a render already measured and
 // fit the content — if the page reflows taller once they arrive, nothing would otherwise
 // re-check it, so re-run the fit once fonts are ready and again after a short delay to catch
 // image loads too
 if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(()=>{ autoFitMainContent(); });
+  document.fonts.ready.then(()=>{ runAutoFit(); });
 }
 let mainFitSettleTimeout = null;
 function scheduleMainFitRecheck(){
   clearTimeout(mainFitSettleTimeout);
-  mainFitSettleTimeout = setTimeout(autoFitMainContent, 350);
+  mainFitSettleTimeout = setTimeout(runAutoFit, 350);
 }
 
 /* ---------------- LOGIN ---------------- */
