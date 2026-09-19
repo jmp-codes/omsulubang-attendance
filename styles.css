@@ -251,6 +251,12 @@
   .auth-tabs{display:flex; gap:6px; margin-bottom:20px; background:var(--accent-soft); padding:4px; border-radius:10px;}
   .auth-tab{flex:1; text-align:center; padding:9px; border-radius:7px; font-size:13px; font-weight:600; color:var(--ink-soft); background:transparent;}
   .auth-tab.active{background:var(--ink); color:#fff;}
+  /* the phase tab picks which kind of code gets generated (time in vs time out) — coloring it
+     the same way the resulting live pill/QR badge will be colored (green/gold) lets an officer
+     confirm which mode they're about to start before they hit "Start live check-in", instead of
+     only finding out after the code is already live */
+  .phase-tab[data-phase="in"].active{background:var(--success); color:#fff;}
+  .phase-tab[data-phase="out"].active{background:var(--accent); color:var(--ink);}
   .auth-sub{display:flex; gap:16px; margin-bottom:18px; font-size:13px;}
   .auth-sub a{color:var(--ink-soft); cursor:pointer; font-weight:600; padding-bottom:4px;}
   .auth-sub a.active{color:var(--ink); border-bottom:2px solid var(--accent);}
@@ -281,6 +287,8 @@
     display:flex; align-items:center; gap:10px;
   }
   .nav-icon{width:18px; height:18px; flex-shrink:0; opacity:0.85;}
+  .btn-with-icon{display:flex; align-items:center; justify-content:center; gap:8px;}
+  .btn-with-icon .nav-icon{opacity:1;}
   .nav-icon svg{width:100%; height:100%; display:block;}
   .nav-item:hover{background:rgba(255,255,255,0.06); color:#fff;}
   .nav-item.active{background:rgba(245,212,29,0.18); color:var(--accent); box-shadow:inset 3px 0 0 var(--accent);}
@@ -444,6 +452,7 @@
   .section-tab.active .chip-count-sm{background:rgba(46,59,133,0.12);}
   .cell-dash{color:var(--ink-soft);}
   .sheet-settings-divider{border-top:1px solid var(--border); margin:16px 0 12px 0;}
+  .form-group-divider{border-top:1px solid var(--border); margin:4px 0 16px 0;}
   .callout{
     background:var(--accent-soft);
     border-left:3px solid var(--accent);
@@ -453,6 +462,23 @@
     line-height:1.6;
     color:var(--ink);
     margin:-2px 0 14px 0;
+  }
+  .warning-banner{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    background:#fff8e6;
+    border-left:3px solid #d69e2e;
+    border-radius:6px;
+    padding:12px 14px;
+    margin-bottom:16px;
+  }
+  .warning-icon{
+    font-size:20px;
+    line-height:1;
+    color:#b7791f;
+    flex-shrink:0;
+    margin-top:1px;
   }
   .readonly-row{
     display:flex;
@@ -556,6 +582,9 @@
       content:attr(data-label); flex:0 0 72px; font-size:10.5px; font-weight:700; color:var(--ink-soft);
       text-transform:uppercase; letter-spacing:.03em; padding-top:2px;
     }
+    /* action-only cells (e.g. a Remove button) carry no label — just give the button room */
+    .log-table td.log-table-action{border-bottom:none; padding:8px 0 0 0;}
+    .log-table td.log-table-action button{width:100%;}
   }
 
   /* ---------------- Attendance Sheet (print template) ----------------

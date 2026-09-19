@@ -419,6 +419,7 @@ let state = {
   authTab:'student',       // student | officer | admin
   authMode:'login',        // login | register
   officerForgotModalOpen:false,
+  studentForgotModalOpen:false,
   currentUser:null,
   err:'',
   studentSubRoute:'checkin',
@@ -473,6 +474,7 @@ let state = {
   recordsSearchQuery:'',
   exportModalOpen:false,
   attendeesPage:1,
+  attendeesSearchQuery:'',
   lastResetPassword:null,
   recoveredStudents:null,
   lastOfficerResetPassword:null
@@ -680,18 +682,37 @@ function renderStudentAuth(){
       <div class="field"><label>Student ID or Username</label><input autocomplete="off" id="s-id" placeholder="e.g. 2023-00451 or juandc"></div>
       ${pwField('s-pw', 'Password', '••••••••')}
       <button class="btn-primary" style="width:100%" id="student-login-btn">Log in</button>
+      <p style="text-align:center; margin:10px 0 0 0;"><a id="student-forgot-pw-link" style="font-size:12.5px; color:var(--ink-soft); font-weight:600; cursor:pointer;">Forgot password?</a></p>
     ` : `
       <div class="field"><label>Full name</label><input autocomplete="off" id="r-name" placeholder="Juan Dela Cruz"></div>
       <div class="field"><label>Student ID</label><input autocomplete="off" id="r-id" placeholder="e.g. 2023-00451"></div>
       <div class="field"><label>Username</label><input autocomplete="off" id="r-username" placeholder="e.g. juandc"></div>
       <div class="field"><label>Sex</label><select id="r-sex"><option value="">Select</option><option value="M">Male</option><option value="F">Female</option></select></div>
+      <div class="form-group-divider"></div>
       <div class="field"><label>Department</label><select id="r-dept">${DB.departments.map(dep=>`<option>${dep}</option>`).join('')}</select></div>
       <div class="field"><label>Section</label><select id="r-section">${sectionOptions(DB.departments[0], null)}</select></div>
       ${pwField('r-pw', 'Password', 'Create a password')}
       <button class="btn-primary" style="width:100%" id="student-register-btn">Create account</button>
     `}
     <div class="hint">You can log in with either your Student ID or your Username — useful if you ever forget one of them. One account is used for every event this school year.</div>
+    ${state.studentForgotModalOpen ? renderStudentForgotModal() : ''}
   `;
+}
+function renderStudentForgotModal(){
+  return `
+  <div class="modal-overlay" id="student-forgot-modal-overlay">
+    <div class="modal-card">
+      <button class="close-x" id="close-student-forgot-modal-btn">&times;</button>
+      <h3 style="margin-top:0;">Forgot your password?</h3>
+      <p style="font-size:13.5px; color:var(--ink-soft); line-height:1.6;">
+        There's no email or SMS recovery for this app — ask your <strong>SAS office</strong> to reset it for
+        you from <strong>Manage Students</strong>. They'll give you a new temporary password to log in with,
+        which you should change right away under <strong>My Profile</strong> once you're in. Your attendance
+        history stays exactly as it was — nothing is lost.
+      </p>
+      <button class="btn-primary" style="width:100%; margin-top:8px;" id="close-student-forgot-modal-btn-2">Got it</button>
+    </div>
+  </div>`;
 }
 function renderOfficerAuth(){
   return `
@@ -734,10 +755,10 @@ function renderAdminAuth(){
 
 function attachLoginHandlers(){
   document.querySelectorAll('.auth-tab').forEach(el=>{
-    el.onclick = ()=>{ state.authTab = el.dataset.tab; state.err=''; state.officerForgotModalOpen=false; render(); };
+    el.onclick = ()=>{ state.authTab = el.dataset.tab; state.err=''; state.officerForgotModalOpen=false; state.studentForgotModalOpen=false; render(); };
   });
   document.querySelectorAll('.auth-sub a').forEach(el=>{
-    el.onclick = ()=>{ state.authMode = el.dataset.mode; state.err=''; render(); };
+    el.onclick = ()=>{ state.authMode = el.dataset.mode; state.err=''; state.studentForgotModalOpen=false; render(); };
   });
   const rDept = document.getElementById('r-dept');
   if(rDept) rDept.onchange = ()=>{
@@ -797,6 +818,15 @@ function attachLoginHandlers(){
   if(closeForgotBtn2) closeForgotBtn2.onclick = closeForgot;
   const forgotOverlay = document.getElementById('officer-forgot-modal-overlay');
   if(forgotOverlay) forgotOverlay.onclick = (e)=>{ if(e.target === forgotOverlay) closeForgot(); };
+  const studentForgotLink = document.getElementById('student-forgot-pw-link');
+  if(studentForgotLink) studentForgotLink.onclick = ()=>{ state.studentForgotModalOpen = true; render(); };
+  const closeStudentForgot = ()=>{ state.studentForgotModalOpen = false; render(); };
+  const closeStudentForgotBtn1 = document.getElementById('close-student-forgot-modal-btn');
+  if(closeStudentForgotBtn1) closeStudentForgotBtn1.onclick = closeStudentForgot;
+  const closeStudentForgotBtn2 = document.getElementById('close-student-forgot-modal-btn-2');
+  if(closeStudentForgotBtn2) closeStudentForgotBtn2.onclick = closeStudentForgot;
+  const studentForgotOverlay = document.getElementById('student-forgot-modal-overlay');
+  if(studentForgotOverlay) studentForgotOverlay.onclick = (e)=>{ if(e.target === studentForgotOverlay) closeStudentForgot(); };
   const aLogin = document.getElementById('admin-login-btn');
   if(aLogin) aLogin.onclick = async ()=>{
     const user = document.getElementById('a-user').value.trim();
@@ -940,7 +970,7 @@ function renderCheckin(){
     return `
     <div class="page-head"><h1>Check in to an event</h1><p>Scan the QR code at the <span class="badge-dept">${state.currentUser.department}</span> station — once when you arrive, once before you leave. Codes from other departments won't work.</p></div>
     <div class="card" style="max-width:460px;">
-      <button class="btn-gold" style="width:100%; padding:14px;" id="open-camera-btn">Scan QR code</button>
+      <button class="btn-gold btn-with-icon" style="width:100%; padding:14px;" id="open-camera-btn"><span class="nav-icon">${NAV_ICONS.checkin}</span>Scan QR code</button>
       <div style="text-align:center; margin:14px 0; color:var(--ink-soft); font-size:12px;">— or —</div>
       <div class="field"><label>Enter code manually</label><input autocomplete="off" id="manual-code" placeholder="paste or type the code shown by the officer" class="mono"></div>
       <button class="btn-primary" style="width:100%" id="submit-code-btn">Continue</button>
@@ -953,8 +983,13 @@ function renderCheckin(){
     return `
     <div class="page-head"><h1>Check in to an event</h1></div>
     <div class="card" style="max-width:460px;">
-      <p><strong>This looks like a different device than the one you last used to check in for this event.</strong></p>
-      <p style="color:var(--ink-soft); font-size:13.5px;">If your previous device is unavailable right now (battery died, forgot it, etc.), you can continue from here instead. If this wasn't you, cancel and let your officer know.</p>
+      <div class="warning-banner">
+        <span class="warning-icon">&#9888;</span>
+        <div>
+          <strong>This looks like a different device than the one you last used to check in for this event.</strong>
+          <p style="margin:6px 0 0 0; color:var(--ink-soft); font-size:13.5px;">If your previous device is unavailable right now (battery died, forgot it, etc.), you can continue from here instead. If this wasn't you, cancel and let your officer know.</p>
+        </div>
+      </div>
       <button class="btn-gold" style="width:100%; margin-bottom:8px;" id="confirm-device-switch-btn">Yes, continue from this device</button>
       <button class="btn-ghost" style="width:100%;" id="cancel-device-switch-btn">Cancel</button>
     </div>
@@ -978,12 +1013,13 @@ function renderHistory(){
   return `
   <div class="page-head"><h1>My Attendance</h1><p>${mine.length} record${mine.length>1?'s':''} recorded this year — one row per desk you've checked in with (section, department, or SSG).</p></div>
   <div class="card" style="padding:0;">
-    <table>
-      <tr><th>Event</th><th>Via</th><th>Department</th><th>AM in</th><th>AM out</th><th>PM in</th><th>PM out</th><th>Status</th></tr>
+    <table class="log-table">
+      <colgroup><col style="width:22%;"><col style="width:10%;"><col style="width:16%;"><col style="width:10%;"><col style="width:10%;"><col style="width:10%;"><col style="width:10%;"><col style="width:12%;"></colgroup>
+      <tr class="log-table-head"><th>Event</th><th>Via</th><th>Department</th><th>AM in</th><th>AM out</th><th>PM in</th><th>PM out</th><th>Status</th></tr>
       ${mine.map(a=>{
         const ev = DB.events.find(e=>e.id===a.eventId);
         const eventName = ev ? ev.name : a.eventName; // fall back to the stored snapshot only if the event itself was deleted
-        return `<tr><td>${eventName}</td><td>${scopePill(a.scope)}</td><td><span class="badge-dept">${a.department}</span></td><td>${a.amTimeIn?fmtDate(a.amTimeIn):'—'}</td><td>${a.amTimeOut?fmtDate(a.amTimeOut):'—'}</td><td>${a.pmTimeIn?fmtDate(a.pmTimeIn):'—'}</td><td>${a.pmTimeOut?fmtDate(a.pmTimeOut):'—'}</td><td>${attendanceStatusPill(a, ev)}</td></tr>`;
+        return `<tr><td data-label="Event">${eventName}</td><td data-label="Via">${scopePill(a.scope)}</td><td data-label="Department"><span class="badge-dept">${a.department}</span></td><td data-label="AM in">${a.amTimeIn?fmtDate(a.amTimeIn):'—'}</td><td data-label="AM out">${a.amTimeOut?fmtDate(a.amTimeOut):'—'}</td><td data-label="PM in">${a.pmTimeIn?fmtDate(a.pmTimeIn):'—'}</td><td data-label="PM out">${a.pmTimeOut?fmtDate(a.pmTimeOut):'—'}</td><td data-label="Status">${attendanceStatusPill(a, ev)}</td></tr>`;
       }).join('')}
     </table>
   </div>`;
@@ -1355,8 +1391,11 @@ function renderOfficerAttendees(myEvents){
   const ev = myEvents.find(e=>e.id===activeId);
   const mySection = state.currentUser.section;
   const myScope = mySection ? 'section' : 'department';
-  const rows = ev ? DB.attendance.filter(a=>a.eventId===ev.id && a.scope===myScope && a.department===state.currentUser.department && (!mySection || normSection(a.section)===normSection(mySection))).sort((a,b)=>(b.amTimeIn||b.pmTimeIn||0)-(a.amTimeIn||a.pmTimeIn||0)) : [];
+  let rows = ev ? DB.attendance.filter(a=>a.eventId===ev.id && a.scope===myScope && a.department===state.currentUser.department && (!mySection || normSection(a.section)===normSection(mySection))).sort((a,b)=>(b.amTimeIn||b.pmTimeIn||0)-(a.amTimeIn||a.pmTimeIn||0)) : [];
   const complete = rows.filter(r=>(r.amTimeIn&&r.amTimeOut)||(r.pmTimeIn&&r.pmTimeOut)).length;
+  const totalCount = rows.length;
+  const aq = (state.attendeesSearchQuery||'').trim().toLowerCase();
+  if(aq) rows = rows.filter(r=>(r.studentName||'').toLowerCase().includes(aq));
   const { items: pageRows, totalPages, page } = paginate(rows, state.attendeesPage, getAutoPageSize('officerAtt', 520));
   return `
   <div class="page-head"><h1>Attendees</h1><p>Live list for ${mySection ? "your section's desk" : "your whole department's desk"} — only check-ins made through your own QR, not other desks.</p></div>
@@ -1370,17 +1409,22 @@ function renderOfficerAttendees(myEvents){
     </div>
   </div>
   <div class="grid">
-    <div class="stat"><div class="num">${rows.length}</div><div class="lbl">Timed in</div></div>
+    <div class="stat"><div class="num">${totalCount}</div><div class="lbl">Timed in</div></div>
     <div class="stat"><div class="num">${complete}</div><div class="lbl">Completed at least one session</div></div>
   </div>
   <div style="margin-bottom:10px;">
-    <button class="btn-danger" id="reset-event-attendance-btn" ${rows.length===0?'disabled':''}>Reset attendance for this event (${rows.length})</button>
+    <button class="btn-danger" id="reset-event-attendance-btn" ${totalCount===0?'disabled':''}>Reset attendance for this event (${totalCount})</button>
     <p class="hint" style="margin-top:8px;">Clears check-ins made through ${mySection ? 'your section' : 'your department'}'s desk only — records from other desks for the same event are untouched. Students will need to scan in again from scratch.</p>
   </div>
+  <div class="field student-search-field search-field-icon" style="max-width:300px; margin-bottom:10px;">
+    <label>Search</label>
+    <input autocomplete="off" id="officer-att-search" value="${state.attendeesSearchQuery||''}" placeholder="Student name">
+  </div>
   <div class="card" style="padding:0;">
-    <table id="officer-att-table">
-      <tr><th>Student</th><th>Section</th><th>AM in</th><th>AM out</th><th>PM in</th><th>PM out</th><th>Status</th><th></th></tr>
-      ${pageRows.map(r=>`<tr><td>${r.studentName}</td><td>${r.section}</td><td>${r.amTimeIn?fmtDate(r.amTimeIn):'—'}</td><td>${r.amTimeOut?fmtDate(r.amTimeOut):'—'}</td><td>${r.pmTimeIn?fmtDate(r.pmTimeIn):'—'}</td><td>${r.pmTimeOut?fmtDate(r.pmTimeOut):'—'}</td><td>${attendanceStatusPill(r, ev)}</td><td><button class="btn-danger" data-remove-att="${r.id}">Remove</button></td></tr>`).join('') || `<tr><td colspan="8" class="empty">No check-ins yet for this event.</td></tr>`}
+    <table id="officer-att-table" class="log-table">
+      <colgroup><col style="width:20%;"><col style="width:11%;"><col style="width:11%;"><col style="width:11%;"><col style="width:11%;"><col style="width:11%;"><col style="width:12%;"><col style="width:13%;"></colgroup>
+      <tr class="log-table-head"><th>Student</th><th>Section</th><th>AM in</th><th>AM out</th><th>PM in</th><th>PM out</th><th>Status</th><th></th></tr>
+      ${pageRows.map(r=>`<tr><td data-label="Student">${r.studentName}</td><td data-label="Section">${r.section}</td><td data-label="AM in">${r.amTimeIn?fmtDate(r.amTimeIn):'—'}</td><td data-label="AM out">${r.amTimeOut?fmtDate(r.amTimeOut):'—'}</td><td data-label="PM in">${r.pmTimeIn?fmtDate(r.pmTimeIn):'—'}</td><td data-label="PM out">${r.pmTimeOut?fmtDate(r.pmTimeOut):'—'}</td><td data-label="Status">${attendanceStatusPill(r, ev)}</td><td class="log-table-action"><button class="btn-danger" data-remove-att="${r.id}">Remove</button></td></tr>`).join('') || `<tr><td colspan="8" class="empty">No check-ins yet for this event.</td></tr>`}
     </table>
   </div>
   ${paginationControls(page, totalPages, 'attendees')}
@@ -1457,8 +1501,11 @@ function renderSsgGenerate(allEvents){
 function renderSsgAttendees(allEvents){
   const activeId = defaultEventId(allEvents, state.officerActiveEventId);
   const ev = allEvents.find(e=>e.id===activeId);
-  const rows = ev ? DB.attendance.filter(a=>a.eventId===ev.id && a.scope==='ssg').sort((a,b)=>(b.amTimeIn||b.pmTimeIn||0)-(a.amTimeIn||a.pmTimeIn||0)) : [];
+  let rows = ev ? DB.attendance.filter(a=>a.eventId===ev.id && a.scope==='ssg').sort((a,b)=>(b.amTimeIn||b.pmTimeIn||0)-(a.amTimeIn||a.pmTimeIn||0)) : [];
   const complete = rows.filter(r=>(r.amTimeIn&&r.amTimeOut)||(r.pmTimeIn&&r.pmTimeOut)).length;
+  const totalCount = rows.length;
+  const aq = (state.attendeesSearchQuery||'').trim().toLowerCase();
+  if(aq) rows = rows.filter(r=>(r.studentName||'').toLowerCase().includes(aq));
   const { items: pageRows, totalPages, page } = paginate(rows, state.attendeesPage, getAutoPageSize('officerAtt', 520));
   return `
   <div class="page-head"><h1>Attendees</h1><p>Live list across every department and section for this event — only check-ins made through the SSG desk, not individual department/section desks.</p></div>
@@ -1472,17 +1519,22 @@ function renderSsgAttendees(allEvents){
     </div>
   </div>
   <div class="grid">
-    <div class="stat"><div class="num">${rows.length}</div><div class="lbl">Timed in</div></div>
+    <div class="stat"><div class="num">${totalCount}</div><div class="lbl">Timed in</div></div>
     <div class="stat"><div class="num">${complete}</div><div class="lbl">Completed at least one session</div></div>
   </div>
   <div style="margin-bottom:10px;">
-    <button class="btn-danger" id="reset-event-attendance-btn" ${rows.length===0?'disabled':''}>Reset attendance for this event (${rows.length})</button>
+    <button class="btn-danger" id="reset-event-attendance-btn" ${totalCount===0?'disabled':''}>Reset attendance for this event (${totalCount})</button>
     <p class="hint" style="margin-top:8px;">Clears SSG check-ins across every department for this event — section and department desk records are untouched. Students will need to scan in again from scratch.</p>
   </div>
+  <div class="field student-search-field search-field-icon" style="max-width:300px; margin-bottom:10px;">
+    <label>Search</label>
+    <input autocomplete="off" id="officer-att-search" value="${state.attendeesSearchQuery||''}" placeholder="Student name">
+  </div>
   <div class="card" style="padding:0;">
-    <table id="officer-att-table">
-      <tr><th>Student</th><th>Department</th><th>Section</th><th>AM in</th><th>AM out</th><th>PM in</th><th>PM out</th><th>Status</th><th></th></tr>
-      ${pageRows.map(r=>`<tr><td>${r.studentName}</td><td><span class="badge-dept">${r.department}</span></td><td>${r.section}</td><td>${r.amTimeIn?fmtDate(r.amTimeIn):'—'}</td><td>${r.amTimeOut?fmtDate(r.amTimeOut):'—'}</td><td>${r.pmTimeIn?fmtDate(r.pmTimeIn):'—'}</td><td>${r.pmTimeOut?fmtDate(r.pmTimeOut):'—'}</td><td>${attendanceStatusPill(r, ev)}</td><td><button class="btn-danger" data-remove-att="${r.id}">Remove</button></td></tr>`).join('') || `<tr><td colspan="9" class="empty">No check-ins yet for this event.</td></tr>`}
+    <table id="officer-att-table" class="log-table">
+      <colgroup><col style="width:18%;"><col style="width:12%;"><col style="width:10%;"><col style="width:10%;"><col style="width:10%;"><col style="width:10%;"><col style="width:10%;"><col style="width:11%;"><col style="width:9%;"></colgroup>
+      <tr class="log-table-head"><th>Student</th><th>Department</th><th>Section</th><th>AM in</th><th>AM out</th><th>PM in</th><th>PM out</th><th>Status</th><th></th></tr>
+      ${pageRows.map(r=>`<tr><td data-label="Student">${r.studentName}</td><td data-label="Department"><span class="badge-dept">${r.department}</span></td><td data-label="Section">${r.section}</td><td data-label="AM in">${r.amTimeIn?fmtDate(r.amTimeIn):'—'}</td><td data-label="AM out">${r.amTimeOut?fmtDate(r.amTimeOut):'—'}</td><td data-label="PM in">${r.pmTimeIn?fmtDate(r.pmTimeIn):'—'}</td><td data-label="PM out">${r.pmTimeOut?fmtDate(r.pmTimeOut):'—'}</td><td data-label="Status">${attendanceStatusPill(r, ev)}</td><td class="log-table-action"><button class="btn-danger" data-remove-att="${r.id}">Remove</button></td></tr>`).join('') || `<tr><td colspan="9" class="empty">No check-ins yet for this event.</td></tr>`}
     </table>
   </div>
   ${paginationControls(page, totalPages, 'attendees')}
@@ -1533,6 +1585,12 @@ function attachSsgHandlers(){
   };
   const attSel = document.getElementById('officer-att-event-select');
   if(attSel) attSel.onchange = ()=>{ state.officerActiveEventId = attSel.value; state.attendeesPage = 1; render(); };
+  const attSearch = document.getElementById('officer-att-search');
+  if(attSearch) attSearch.oninput = ()=>{
+    state.attendeesSearchQuery = attSearch.value;
+    state.attendeesPage = 1;
+    reRenderPreservingFocus();
+  };
   if(state.officerRotating && state.officerToken && lastRenderedQrToken !== state.officerToken){
     setTimeout(()=>{
       const holder = document.getElementById('qr-render');
@@ -1628,6 +1686,12 @@ function attachOfficerHandlers(){
   };
   const attSel = document.getElementById('officer-att-event-select');
   if(attSel) attSel.onchange = ()=>{ state.officerActiveEventId = attSel.value; state.attendeesPage = 1; render(); };
+  const attSearch = document.getElementById('officer-att-search');
+  if(attSearch) attSearch.oninput = ()=>{
+    state.attendeesSearchQuery = attSearch.value;
+    state.attendeesPage = 1;
+    reRenderPreservingFocus();
+  };
   // only redraw the QR canvas when the token itself has actually changed, to avoid flicker on every countdown tick
   if(state.officerRotating && state.officerToken && lastRenderedQrToken !== state.officerToken){
     setTimeout(()=>{
