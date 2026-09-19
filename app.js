@@ -570,22 +570,35 @@ function autoFitMainContent(){
     if(main.style.zoom !== '100%') main.style.zoom = '100%';
     return;
   }
-  main.style.zoom = '100%'; // reset first so scrollHeight reflects the true, unzoomed size
-  const available = main.clientHeight;
-  const natural = main.scrollHeight;
-  if(available>0 && natural > available){
-    const pct = Math.max(60, Math.floor((available / natural) * 100));
+  main.style.zoom = '100%'; // reset first so scrollHeight/scrollWidth reflect the true, unzoomed size
+  const availableH = main.clientHeight;
+  const naturalH = main.scrollHeight;
+  const availableW = main.clientWidth;
+  const naturalW = main.scrollWidth;
+  // CSS zoom scales both axes together, so a fit computed from height alone (the original
+  // approach) never caught genuine WIDTH overflow — a filter row, wide table, or the pagination
+  // controls could still get silently clipped on the right at in-between desktop widths, since
+  // #app's overflow:hidden hides the excess with no scrollbar to reach it. Take whichever axis
+  // needs more shrinking so both fit.
+  let pct = 100;
+  if(availableH>0 && naturalH > availableH) pct = Math.min(pct, Math.floor((availableH / naturalH) * 100));
+  if(availableW>0 && naturalW > availableW) pct = Math.min(pct, Math.floor((availableW / naturalW) * 100));
+  if(pct < 100){
+    pct = Math.max(60, pct);
     main.style.zoom = pct + '%';
     // even after shrinking as far as the floor allows, there may still be genuine leftover
-    // overflow — only then does scrolling need to be possible at all
-    const stillOverflows = (natural * (pct/100)) > available;
-    main.style.overflowY = stillOverflows ? 'auto' : 'hidden';
+    // overflow on either axis — only then does scrolling need to be possible at all
+    const stillOverflowsH = (naturalH * (pct/100)) > availableH;
+    const stillOverflowsW = (naturalW * (pct/100)) > availableW;
+    main.style.overflowY = stillOverflowsH ? 'auto' : 'hidden';
+    main.style.overflowX = stillOverflowsW ? 'auto' : 'hidden';
   } else {
-    // content already fits with no shrinking needed — setting overflow-y to "auto" here would
+    // content already fits with no shrinking needed — setting overflow to "auto" here would
     // still make some browsers (Windows Chrome especially) reserve/draw an empty scrollbar
     // track purely because the property is "auto" rather than "hidden", even with truly zero
     // scrollable content, which is exactly the bug this was causing
     main.style.overflowY = 'hidden';
+    main.style.overflowX = 'hidden';
   }
 }
 let mainFitResizeDebounce = null;
@@ -2061,21 +2074,6 @@ function renderAdminStudents(){
       <button class="btn-ghost" style="width:100%; margin-top:10px;" id="dismiss-reset-btn">Dismiss</button>
     </div>
   ` : ''}
-  ${editingUser ? `
-  <div class="card" style="max-width:480px; margin-bottom:16px;">
-    <div class="pill gold" style="margin-bottom:10px;">Editing ${editingUser.id}</div>
-    <div class="field"><label>Full name</label><input autocomplete="off" id="stu-edit-name" value="${editingUser.name}"></div>
-    <div class="field"><label>Student ID</label><input autocomplete="off" id="stu-edit-id" value="${editingUser.id}"></div>
-    <div class="field"><label>Username</label><input autocomplete="off" id="stu-edit-username" value="${editingUser.username||''}" placeholder="e.g. juandc"></div>
-    <div class="field"><label>Sex</label><select id="stu-edit-sex"><option value="">Select</option><option value="M" ${editingUser.sex==='M'?'selected':''}>Male</option><option value="F" ${editingUser.sex==='F'?'selected':''}>Female</option></select></div>
-    <div class="field"><label>Department</label><select id="stu-edit-dept">${DB.departments.map(dep=>`<option ${editingUser.department===dep?'selected':''}>${dep}</option>`).join('')}</select></div>
-    <div class="field"><label>Section</label><select id="stu-edit-section">${sectionOptions(editingUser.department, editingUser.section)}</select></div>
-    <p class="hint" style="margin-top:-6px;">Changing Student ID moves this account's full attendance history to the new ID automatically.</p>
-    ${state.err ? `<div class="err">${state.err}</div>` : ''}
-    <button class="btn-primary" style="width:100%;" id="save-student-edit-btn">Save changes</button>
-    <button class="btn-ghost" style="width:100%; margin-top:8px;" id="cancel-student-edit-btn">Cancel</button>
-  </div>
-  ` : ''}
   <div class="card student-toolbar">
     <div class="dept-chip-row">
       <button class="dept-chip ${deptFilter==='all'?'active':''}" data-dept="all">All students <span class="chip-count">${allStudents.length}</span></button>
@@ -2105,7 +2103,27 @@ function renderAdminStudents(){
     </table>
   </div>
   ${paginationControls(page, totalPages, 'student')}
+  ${editingUser ? renderStudentEditModal(editingUser) : ''}
   `;
+}
+function renderStudentEditModal(editingUser){
+  return `
+  <div class="modal-overlay" id="student-edit-modal-overlay">
+    <div class="modal-card">
+      <button class="close-x" id="close-student-edit-modal-btn">&times;</button>
+      <div class="pill gold" style="margin-bottom:10px;">Editing ${editingUser.id}</div>
+      <div class="field"><label>Full name</label><input autocomplete="off" id="stu-edit-name" value="${editingUser.name}"></div>
+      <div class="field"><label>Student ID</label><input autocomplete="off" id="stu-edit-id" value="${editingUser.id}"></div>
+      <div class="field"><label>Username</label><input autocomplete="off" id="stu-edit-username" value="${editingUser.username||''}" placeholder="e.g. juandc"></div>
+      <div class="field"><label>Sex</label><select id="stu-edit-sex"><option value="">Select</option><option value="M" ${editingUser.sex==='M'?'selected':''}>Male</option><option value="F" ${editingUser.sex==='F'?'selected':''}>Female</option></select></div>
+      <div class="field"><label>Department</label><select id="stu-edit-dept">${DB.departments.map(dep=>`<option ${editingUser.department===dep?'selected':''}>${dep}</option>`).join('')}</select></div>
+      <div class="field"><label>Section</label><select id="stu-edit-section">${sectionOptions(editingUser.department, editingUser.section)}</select></div>
+      <p class="hint" style="margin-top:-6px;">Changing Student ID moves this account's full attendance history to the new ID automatically.</p>
+      ${state.err ? `<div class="err">${state.err}</div>` : ''}
+      <button class="btn-primary" style="width:100%;" id="save-student-edit-btn">Save changes</button>
+      <button class="btn-ghost" style="width:100%; margin-top:8px;" id="cancel-student-edit-btn">Cancel</button>
+    </div>
+  </div>`;
 }
 function renderOfficerModal(){
   const d = state.newOfficerDraft;
@@ -2818,7 +2836,12 @@ function attachAdminHandlers(){
     render();
   };
   const cancelStudentEdit = document.getElementById('cancel-student-edit-btn');
-  if(cancelStudentEdit) cancelStudentEdit.onclick = ()=>{ state.editingStudentId=null; state.err=''; render(); };
+  const closeStudentEditModal = ()=>{ state.editingStudentId=null; state.err=''; render(); };
+  if(cancelStudentEdit) cancelStudentEdit.onclick = closeStudentEditModal;
+  const closeStudentEditBtn = document.getElementById('close-student-edit-modal-btn');
+  if(closeStudentEditBtn) closeStudentEditBtn.onclick = closeStudentEditModal;
+  const studentEditModalOverlay = document.getElementById('student-edit-modal-overlay');
+  if(studentEditModalOverlay) studentEditModalOverlay.onclick = (e)=>{ if(e.target === studentEditModalOverlay) closeStudentEditModal(); };
   document.querySelectorAll('[data-reset-student]').forEach(el=>{
     el.onclick = async ()=>{
       const id = el.dataset.resetStudent;

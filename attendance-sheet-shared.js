@@ -303,6 +303,37 @@ function renderSheetPreviewModal(s, d, chunks, activePage){
    (logos, university info, footer), the preview modal (zoom, paging, print). Each role-specific
    file calls this once, then wires its own page's unique fields (event/session pickers etc.)
    on top of it. */
+// The static @page size (8.5in x 13in) is tall enough to fit the largest sheet, but a shorter
+// sheet (fewer attendee rows, or no footer badge) leaves a lot of blank paper below the content —
+// the actual printout ends up looking sparse/"distant" compared to how it looks in the on-screen
+// preview, where the viewport is cropped tightly around the content instead of matching a fixed
+// physical page. Fixed by measuring the tallest rendered .print-sheet right before printing and
+// sizing the page to match it (plus margins), instead of always printing a fixed 13in page.
+function applyDynamicPrintPageSize(){
+  const sheets = document.querySelectorAll('#print-sheet .print-sheet');
+  if(!sheets.length) return;
+  // .print-sheet-container is shown on-screen at the user's chosen preview zoom (e.g. 48%), and
+  // that CSS zoom scales getBoundingClientRect() results too — divide it back out to get the
+  // true 100%-zoom height that will actually appear on the printed page.
+  const zoomFactor = (state.sheetZoom || 100) / 100;
+  let maxHeightPx = 0;
+  sheets.forEach(sheet=>{
+    const h = sheet.getBoundingClientRect().height / zoomFactor;
+    if(h > maxHeightPx) maxHeightPx = h;
+  });
+  if(!maxHeightPx) return;
+  const marginIn = 0.5;
+  const bufferIn = 0.15; // small safety margin for font-rendering differences between screen and print engines
+  const contentIn = maxHeightPx / 96; // 96 CSS px per inch
+  const pageHeightIn = (contentIn + marginIn*2 + bufferIn).toFixed(2);
+  let styleTag = document.getElementById('dynamic-print-page-size');
+  if(!styleTag){
+    styleTag = document.createElement('style');
+    styleTag.id = 'dynamic-print-page-size';
+    document.head.appendChild(styleTag);
+  }
+  styleTag.textContent = `@media print { @page { size: 8.5in ${pageHeightIn}in; margin: ${marginIn}in; } }`;
+}
 function markSheetSettingsUnsaved(){
   state.sheetSettingsDirty = true;
   const badge = document.getElementById('sheet-settings-unsaved');
@@ -490,10 +521,10 @@ function attachSheetCommonHandlers(){
     // print an element that was never actually there, producing a blank page
     state.sheetPreviewModalOpen = true;
     render();
-    setTimeout(()=>{ window.print(); }, 50);
+    setTimeout(()=>{ applyDynamicPrintPageSize(); window.print(); }, 50);
   };
   const printSheetBtnModal = document.getElementById('print-sheet-btn-modal');
-  if(printSheetBtnModal) printSheetBtnModal.onclick = ()=>{ window.print(); };
+  if(printSheetBtnModal) printSheetBtnModal.onclick = ()=>{ applyDynamicPrintPageSize(); window.print(); };
   const openSheetPreviewBtn = document.getElementById('open-sheet-preview-btn');
   if(openSheetPreviewBtn) openSheetPreviewBtn.onclick = ()=>{ state.sheetPreviewModalOpen = true; render(); };
   const closeSheetPreviewBtn = document.getElementById('close-sheet-preview-btn');
