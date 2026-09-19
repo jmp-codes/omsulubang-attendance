@@ -224,13 +224,7 @@ function renderOneSheet(s, d, attendeesChunk, pageIndex, isActive){
   return `
     <div class="ps-page${isActive ? '' : ' ps-preview-hidden'}">
     <div class="print-sheet">
-      <div class="ps-doccontrol-row">
-        <table class="ps-doccontrol">
-          <tr><td class="label">Reference No.</td><td>${s.refNo}</td></tr>
-          <tr><td class="label">Effectivity Date</td><td>${s.effectivityDate}</td></tr>
-          <tr><td class="label">Revision No.</td><td>${s.revisionNo}</td></tr>
-        </table>
-      </div>
+      <div class="ps-topline"><span>Reference No.: ${s.refNo}</span><span>Effectivity Date: ${s.effectivityDate}</span><span>Revision No. ${s.revisionNo}</span></div>
       <div class="ps-header">
         <div class="ps-logo left">${s.leftLogo ? `<img class="ps-draggable-logo" data-logo="left" data-page="${pageIndex}" src="${s.leftLogo}" style="width:${s.leftLogoSize}px; height:${s.leftLogoSize}px; transform:translate(${s.leftLogoX}px, ${s.leftLogoY}px);">` : ''}</div>
         <div class="ps-headtext">
